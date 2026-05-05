@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# Production
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Python / backend
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/uploads/
+backend/temp/
+backend/data/
+backend/storage/
+backend/*.db
+backend/*.sqlite
+
+# ML model artefacts (keep folder, ignore weights)
+backend/models/*.pkl
+backend/models/*.pt
+backend/models/*.bin
+backend/models/*.onnx
+
+# Misc
+coverage/
+.cache/
+.turbo/

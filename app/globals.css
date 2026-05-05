@@ -1,0 +1,297 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --primary: 216 72% 24%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 43 96% 56%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 216 72% 24%;
+  --radius: 0.9rem;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  max-width: 100%;
+  overflow-x: clip;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  max-width: 100%;
+  overflow-x: clip;
+  background:
+    radial-gradient(ellipse 80% 60% at 8% -10%, rgba(37, 99, 235, 0.12), transparent 40%),
+    radial-gradient(ellipse 60% 50% at 92% 5%, rgba(245, 158, 11, 0.1), transparent 35%),
+    radial-gradient(ellipse 70% 60% at 50% 105%, rgba(16, 185, 129, 0.08), transparent 40%),
+    linear-gradient(180deg, #f8fafc 0%, #eef4ff 35%, #f1f5f9 70%, #f8fafc 100%);
+  color: hsl(var(--foreground));
+  text-rendering: geometricPrecision;
+}
+
+.gov-grid {
+  position: relative;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.glass-panel {
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 8px 32px rgba(15, 23, 42, 0.06),
+    0 24px 80px rgba(15, 23, 42, 0.08);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  backdrop-filter: blur(24px) saturate(140%);
+}
+
+.aurora-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.aurora-card::before {
+  position: absolute;
+  inset: -50%;
+  background: conic-gradient(
+    from 200deg at 50% 50%,
+    rgba(37, 99, 235, 0.15),
+    rgba(245, 158, 11, 0.13),
+    rgba(16, 185, 129, 0.11),
+    rgba(99, 102, 241, 0.12),
+    rgba(37, 99, 235, 0.15)
+  );
+  content: "";
+  filter: blur(48px);
+  opacity: 0.45;
+  transform: rotate(12deg);
+  animation: aurora-rotate 20s linear infinite;
+}
+
+@keyframes aurora-rotate {
+  from { transform: rotate(12deg); }
+  to { transform: rotate(372deg); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #059669 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.divider-fade {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.1), transparent);
+}
+
+/* ─────────────── 2026 refresh utilities ─────────────── */
+
+/* Hide scrollbar but keep scroll */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; }
+@supports (scrollbar-width: none) {
+  .no-scrollbar { scrollbar-width: none; }
+}
+
+/* Subtle noise/grain overlay — SVG turbulence, ~1.6kb inlined */
+.carousel-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.38 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 220px 220px;
+}
+
+.grain {
+  position: relative;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.06  0 0 0 0 0.07  0 0 0 0 0.09  0 0 0 0.25 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 180px 180px;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  border-radius: inherit;
+}
+
+/* Infinite horizontal marquee */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 32s linear infinite;
+  will-change: transform;
+}
+.animate-marquee:hover { animation-play-state: paused; }
+
+/* Slide progress bar (carousel dot) */
+@keyframes slideProgress {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.animate-slide-progress {
+  animation: slideProgress 5.5s linear forwards;
+  transform-origin: left center;
+}
+
+/* Slow pulse for orbs */
+@keyframes pulseSlow {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.95; transform: scale(1.06); }
+}
+.animate-pulse-slow {
+  animation: pulseSlow 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Shimmer for skeletons / "new" highlights */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    rgba(15,23,42,0.85) 0%,
+    rgba(59,130,246,0.95) 45%,
+    rgba(15,23,42,0.85) 55%,
+    rgba(15,23,42,0.85) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3.6s linear infinite;
+}
+
+/* Ambient colour-blob backdrop for sections */
+.ambient-blobs {
+  position: relative;
+}
+.ambient-blobs::before,
+.ambient-blobs::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: 0;
+}
+.ambient-blobs::before {
+  width: 360px; height: 360px;
+  background: radial-gradient(circle, rgba(59,130,246,0.5), transparent 70%);
+  top: -120px; left: -120px;
+  animation: pulseSlow 8s ease-in-out infinite;
+}
+.ambient-blobs::after {
+  width: 420px; height: 420px;
+  background: radial-gradient(circle, rgba(245,158,11,0.38), transparent 70%);
+  bottom: -160px; right: -140px;
+  animation: pulseSlow 10s ease-in-out infinite reverse;
+}
+.ambient-blobs > * { position: relative; z-index: 1; }
+
+/* Magnetic-button feeling hover */
+.magnetic {
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease;
+}
+.magnetic:hover {
+  transform: translateY(-3px) scale(1.015);
+}
+
+/* Kbd key pill */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: linear-gradient(180deg, #ffffff, #f1f5f9);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06), inset 0 -1px 0 rgba(15, 23, 42, 0.08);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Mesh-gradient border */
+.mesh-border {
+  position: relative;
+  background: linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(from 180deg at 50% 50%,
+      #3b82f6,
+      #8b5cf6,
+      #f59e0b,
+      #10b981,
+      #3b82f6
+    ) border-box;
+  border: 1.5px solid transparent;
+}
+
+/* Vertical divider with gradient */
+.rule-v {
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, rgba(15, 23, 42, 0.15), transparent);
+}

@@ -1,0 +1,610 @@
+{
+  "reports": {
+    "ZT8OcFlNP6oD3Q": {
+      "token": "ZT8OcFlNP6oD3Q",
+      "title": "Q2 tender eval",
+      "createdAt": "2026-05-04T16:04:07.024304+00:00",
+      "createdBy": {
+        "id": "o1",
+        "name": "Alice Kumar",
+        "role": "Procurement Officer"
+      },
+      "criteria": [
+        {
+          "id": "c1",
+          "description": "Tech",
+          "threshold": "75",
+          "mandatory": true,
+          "confirmed": true
+        }
+      ],
+      "vendors": [
+        {
+          "id": "v1",
+          "name": "Vendor A",
+          "technicalStatus": "Eligible",
+          "financialStatus": "Eligible",
+          "complianceStatus": "Eligible",
+          "finalVerdict": "Eligible",
+          "evidence": []
+        }
+      ],
+      "signatures": [
+        {
+          "officer": {
+            "id": "o2",
+            "name": "Bob Singh",
+            "role": "Legal Reviewer"
+          },
+          "decision": "approve",
+          "note": "Looks compliant.",
+          "signedAt": "2026-05-04T16:04:07.052148+00:00"
+        }
+      ],
+      "locked": true,
+      "lockedAt": "2026-05-04T16:04:07.088468+00:00",
+      "lockedBy": {
+        "id": "o1",
+        "name": "Alice Kumar",
+        "role": "Procurement Officer"
+      }
+    },
+    "r61_kxYq57ORUg": {
+      "token": "r61_kxYq57ORUg",
+      "title": "E2E Test Report",
+      "createdAt": "2026-05-04T16:17:07.074209+00:00",
+      "createdBy": {
+        "id": "off-alice",
+        "name": "Alice Kumar",
+        "role": "Procurement Officer"
+      },
+      "criteria": [
+        {
+          "id": "crit-001",
+          "description": "Minimum technical capability score",
+          "threshold": "75 marks",
+          "mandatory": true,
+          "confirmed": true
+        },
+        {
+          "id": "crit-002",
+          "description": "Average annual turnover",
+          "threshold": "INR 50 crores",
+          "mandatory": true,
+          "confirmed": true
+        },
+        {
+          "id": "crit-003",
+          "description": "Valid statutory registrations and non-blacklisting certificate",
+          "threshold": "Valid",
+          "mandatory": true,
+          "confirmed": true
+        },
+        {
+          "id": "crit-004",
+          "description": "Delivery timeline compliance",
+          "threshold": "Within 6 months",
+          "mandatory": false,
+          "confirmed": true
+        }
+      ],
+      "vendors": [
+        {
+          "id": "v-1",
+          "name": "Vendor 1",
+          "technicalStatus": "Not Eligible",
+          "financialStatus": "Eligible",
+          "complianceStatus": "Manual Review",
+          "finalVerdict": "Not Eligible",
+          "evidence": [
+            {
+              "criterionName": "Minimum technical capability score",
+              "status": "Not Eligible",
+              "extractedValue": "68 marks",
+              "requiredThreshold": "75 marks",
+              "sourceDocument": "Vendor 1_submission.pdf",
+              "reason": "Technical score (68) is below the required threshold of 75 marks.",
+              "confidence": 0.94
+            },
+            {
+              "criterionName": "Average annual turnover",
+              "status": "Eligible",
+              "extractedValue": "INR 75 crores",
+              "requiredThreshold": "INR 50 crores",
+              "sourceDocument": "Vendor 1_submission.pdf",
+              "reason": "Annual turnover (INR 75 crores) meets the minimum requirement of INR 50 crores.",
+              "confidence": 0.91
+            },
+            {
+              "criterionName": "Valid statutory registrations and non-blacklisting certificate",
+              "status": "Eligible",
+              "extractedValue": "Valid",
+              "requiredThreshold": "Valid",
+              "sourceDocument": "Vendor 1_submission.pdf",
+              "reason": "Vendor holds valid statutory registrations and non-blacklisting certificate.",
+              "confidence": 0.97
+            },
+            {
+              "criterionName": "Delivery timeline compliance",
+              "status": "Manual Review",
+              "extractedValue": "7 months",
+              "requiredThreshold": "Within 6 months",
+              "sourceDocument": "Vendor 1_submission.pdf",
+              "reason": "Proposed delivery timeline (7 months) exceeds preference; may be considered during final review.",
+              "confidence": 0.88
+            }
+          ]
+        },
+        {
+          "id": "v-2",
+          "name": "Vendor 2",
+          "technicalStatus": "Not Eligible",
+          "financialStatus": "Eligible",
+          "complianceStatus": "Not Eligible",
+          "finalVerdict": "Not Eligible",
+          "evidence": [
+            {
+              "criterionName": "Minimum technical capability score",
+              "status": "Not Eligible",
+              "extractedValue": "65 marks",
+              "requiredThreshold": "75 marks",
+              "sourceDocument": "Vendor 2_submission.pdf",
+              "reason": "Technical score (65) is below the required threshold of 75 marks.",
+              "confidence": 0.94
+            },
+            {
+              "criterionName": "Average annual turnover",
+              "status": "Eligible",
+              "extractedValue": "INR 75 crores",
+              "requiredThreshold": "INR 50 crores",
+              "sourceDocument": "Vendor 2_submission.pdf",
+              "reason": "Annual turnover (INR 75 crores) meets the minimum requirement of INR 50 crores.",
+              "confidence": 0.91
+            },
+            {
+              "criterionName": "Valid statutory registrations and non-blacklisting certificate",
+              "status": "Not Eligible",
+              "extractedValue": "Missing",
+              "requiredThreshold": "Valid",
+              "sourceDocument": "Vendor 2_submission.pdf",
+              "reason": "Vendor is missing required statutory registrations or blacklisting clearance.",
+              "confidence": 0.97
+            },
+            {
+              "criterionName": "Delivery timeline compliance",
+              "status": "Manual Review",
+              "extractedValue": "7 months",
+              "requiredThreshold": "Within 6 months",
+              "sourceDocument": "Vendor 2_submission.pdf",
+              "reason": "Proposed delivery timeline (7 months) exceeds preference; may be considered during final review.",
+              "confidence": 0.88
+            }
+          ]
+        },
+        {
+          "id": "v-3",
+          "name": "Vendor 3",
+          "technicalStatus": "Eligible",
+          "financialStatus": "Not Eligible",
+          "complianceStatus": "Not Eligible",
+          "finalVerdict": "Not Eligible",
+          "evidence": [
+            {
+              "criterionName": "Minimum technical capability score",
+              "status": "Eligible",
+              "extractedValue": "82 marks",
+              "requiredThreshold": "75 marks",
+              "sourceDocument": "Vendor 3_submission.pdf",
+              "reason": "Technical score (82) meets the required threshold of 75 marks.",
+              "confidence": 0.94
+            },
+            {
+              "criterionName": "Average annual turnover",
+              "status": "Not Eligible",
+              "extractedValue": "INR 35 crores",
+              "requiredThreshold": "INR 50 crores",
+              "sourceDocument": "Vendor 3_submission.pdf",
+              "reason": "Annual turnover (INR 35 crores) is below the minimum requirement of INR 50 crores.",
+              "confidence": 0.91
+            },
+            {
+              "criterionName": "Valid statutory registrations and non-blacklisting certificate",
+              "status": "Not Eligible",
+              "extractedValue": "Missing",
+              "requiredThreshold": "Valid",
+              "sourceDocument": "Vendor 3_submission.pdf",
+              "reason": "Vendor is missing required statutory registrations or blacklisting clearance.",
+              "confidence": 0.97
+            },
+            {
+              "criterionName": "Delivery timeline compliance",
+              "status": "Eligible",
+              "extractedValue": "6 months",
+              "requiredThreshold": "Within 6 months",
+              "sourceDocument": "Vendor 3_submission.pdf",
+              "reason": "Proposed delivery timeline (6 months) is within the acceptable window.",
+              "confidence": 0.88
+            }
+          ]
+        }
+      ],
+      "signatures": [
+        {
+          "officer": {
+            "id": "off-bob",
+            "name": "Bob Singh",
+            "role": "Legal Reviewer"
+          },
+          "decision": "approve",
+          "note": "All compliance criteria verified.",
+          "signedAt": "2026-05-04T16:17:07.110452+00:00"
+        },
+        {
+          "officer": {
+            "id": "off-ravi",
+            "name": "Ravi Menon",
+            "role": "Finance Head"
+          },
+          "decision": "approve",
+          "note": "Financial thresholds met.",
+          "signedAt": "2026-05-04T16:17:07.119215+00:00"
+        }
+      ],
+      "locked": true,
+      "lockedAt": "2026-05-04T16:17:07.127654+00:00",
+      "lockedBy": {
+        "id": "off-alice",
+        "name": "Alice Kumar",
+        "role": "Procurement Officer"
+      }
+    },
+    "dcpiF6WrhYyKVQ": {
+      "token": "dcpiF6WrhYyKVQ",
+      "title": "Tender evaluation \u2014 4/5/2026",
+      "createdAt": "2026-05-04T17:28:41.669899+00:00",
+      "createdBy": {
+        "id": "off-alice",
+        "name": "Alice Kumar",
+        "role": "Procurement Officer"
+      },
+      "criteria": [],
+      "vendors": [
+        {
+          "id": "vendor-1",
+          "name": "Vendor A",
+          "technicalStatus": "Eligible",
+          "financialStatus": "Eligible",
+          "complianceStatus": "Eligible",
+          "finalVerdict": "Eligible",
+          "evidence": [
+            {
+              "criterionName": "Minimum technical capability score",
+              "status": "Eligible",
+              "extractedValue": "82 marks",
+              "requiredThreshold": "75 marks",
+              "sourceDocument": "Vendor A_submission.pdf",
+              "reason": "Technical score (82) meets the required threshold of 75 marks.",
+              "confidence": 0.94
+            },
+            {
+              "criterionName": "Average annual turnover",
+              "status": "Eligible",
+              "extractedValue": "INR 75 crores",
+              "requiredThreshold": "INR 50 crores",
+              "sourceDocument": "Vendor A_submission.pdf",
+              "reason": "Annual turnover (INR 75 crores) meets the minimum requirement of INR 50 crores.",
+              "confidence": 0.91
+            },
+            {
+              "criterionName": "Valid statutory registrations and non-blacklisting certificate",
+              "status": "Eligible",
+              "extractedValue": "Valid",
+              "requiredThreshold": "Valid",
+              "sourceDocument": "Vendor A_submission.pdf",
+              "reason": "Vendor holds valid statutory registrations and non-blacklisting certificate.",
+              "confidence": 0.97
+            }
+          ]
+        },
+        {
+          "id": "vendor-2",
+          "name": "Vendor B",
+          "technicalStatus": "Not Eligible",
+          "financialStatus": "Eligible",
+          "complianceStatus": "Eligible",
+          "finalVerdict": "Not Eligible",
+          "evidence": [
+            {
+              "criterionName": "Minimum technical capability score",
+              "status": "Not Eligible",
+              "extractedValue": "65 marks",
+              "requiredThreshold": "75 marks",
+              "sourceDocument": "Vendor B_submission.pdf",
+              "reason": "Technical score (65) is below the required threshold of 75 marks.",
+              "confidence": 0.94
+            },
+            {
+              "criterionName": "Average annual turnover",
+              "status": "Eligible",
+              "extractedValue": "INR 120 crores",
+              "requiredThreshold": "INR 50 crores",
+              "sourceDocument": "Vendor B_submission.pdf",
+              "reason": "Annual turnover (INR 120 crores) meets the minimum requirement of INR 50 crores.",
+              "confidence": 0.91
+            },
+            {
+              "criterionName": "Valid statutory registrations and non-blacklisting certificate",
+              "status": "Eligible",
+              "extractedValue": "Valid",
+              "requiredThreshold": "Valid",
+              "sourceDocument": "Vendor B_submission.pdf",
+              "reason": "Vendor holds valid statutory registrations and non-blacklisting certificate.",
+              "confidence": 0.97
+            }
+          ]
+        },
+        {
+          "id": "vendor-3",
+          "name": "Vendor C",
+          "technicalStatus": "Eligible",
+          "financialStatus": "Not Eligible",
+          "complianceStatus": "Manual Review",
+          "finalVerdict": "Not Eligible",
+          "evidence": [
+            {
+              "criterionName": "Minimum technical capability score",
+              "status": "Eligible",
+              "extractedValue": "91 marks",
+              "requiredThreshold": "75 marks",
+              "sourceDocument": "Vendor C_submission.pdf",
+              "reason": "Technical score (91) meets the required threshold of 75 marks.",
+              "confidence": 0.94
+            },
+            {
+              "criterionName": "Average annual turnover",
+              "status": "Not Eligible",
+              "extractedValue": "INR 35 crores",
+              "requiredThreshold": "INR 50 crores",
+              "sourceDocument": "Vendor C_submission.pdf",
+              "reason": "Annual turnover (INR 35 crores) is below the minimum requirement of INR 50 crores.",
+              "confidence": 0.91
+            },
+            {
+              "criterionName": "Valid statutory registrations and non-blacklisting certificate",
+              "status": "Manual Review",
+              "extractedValue": "Missing",
+              "requiredThreshold": "Valid",
+              "sourceDocument": "Vendor C_submission.pdf",
+              "reason": "Vendor is missing required statutory registrations or blacklisting clearance.",
+              "confidence": 0.97
+            }
+          ]
+        }
+      ],
+      "signatures": [],
+      "locked": false,
+      "lockedAt": null,
+      "lockedBy": null
+    },
+    "3lTZuBj5GMwbpw": {
+      "token": "3lTZuBj5GMwbpw",
+      "title": "Tender evaluation \u2014 05/05/2026",
+      "createdAt": "2026-05-05T10:45:41.208997+00:00",
+      "createdBy": {
+        "id": "off-alice",
+        "name": "Alice Kumar",
+        "role": "Procurement Officer"
+      },
+      "criteria": [],
+      "vendors": [
+        {
+          "id": "vendor-1",
+          "name": "Vendor A",
+          "technicalStatus": "Eligible",
+          "financialStatus": "Eligible",
+          "complianceStatus": "Eligible",
+          "finalVerdict": "Eligible",
+          "evidence": [
+            {
+              "criterionName": "Minimum technical capability score",
+              "status": "Eligible",
+              "extractedValue": "82 marks",
+              "requiredThreshold": "75 marks",
+              "sourceDocument": "Vendor A_submission.pdf",
+              "reason": "Technical score (82) meets the required threshold of 75 marks.",
+              "confidence": 0.94
+            },
+            {
+              "criterionName": "Average annual turnover",
+              "status": "Eligible",
+              "extractedValue": "INR 75 crores",
+              "requiredThreshold": "INR 50 crores",
+              "sourceDocument": "Vendor A_submission.pdf",
+              "reason": "Annual turnover (INR 75 crores) meets the minimum requirement of INR 50 crores.",
+              "confidence": 0.91
+            },
+            {
+              "criterionName": "Valid statutory registrations and non-blacklisting certificate",
+              "status": "Eligible",
+              "extractedValue": "Valid",
+              "requiredThreshold": "Valid",
+              "sourceDocument": "Vendor A_submission.pdf",
+              "reason": "Vendor holds valid statutory registrations and non-blacklisting certificate.",
+              "confidence": 0.97
+            }
+          ]
+        },
+        {
+          "id": "vendor-2",
+          "name": "Vendor B",
+          "technicalStatus": "Not Eligible",
+          "financialStatus": "Eligible",
+          "complianceStatus": "Eligible",
+          "finalVerdict": "Not Eligible",
+          "evidence": [
+            {
+              "criterionName": "Minimum technical capability score",
+              "status": "Not Eligible",
+              "extractedValue": "65 marks",
+              "requiredThreshold": "75 marks",
+              "sourceDocument": "Vendor B_submission.pdf",
+              "reason": "Technical score (65) is below the required threshold of 75 marks.",
+              "confidence": 0.94
+            },
+            {
+              "criterionName": "Average annual turnover",
+              "status": "Eligible",
+              "extractedValue": "INR 120 crores",
+              "requiredThreshold": "INR 50 crores",
+              "sourceDocument": "Vendor B_submission.pdf",
+              "reason": "Annual turnover (INR 120 crores) meets the minimum requirement of INR 50 crores.",
+              "confidence": 0.91
+            },
+            {
+              "criterionName": "Valid statutory registrations and non-blacklisting certificate",
+              "status": "Eligible",
+              "extractedValue": "Valid",
+              "requiredThreshold": "Valid",
+              "sourceDocument": "Vendor B_submission.pdf",
+              "reason": "Vendor holds valid statutory registrations and non-blacklisting certificate.",
+              "confidence": 0.97
+            }
+          ]
+        },
+        {
+          "id": "vendor-3",
+          "name": "Vendor C",
+          "technicalStatus": "Eligible",
+          "financialStatus": "Not Eligible",
+          "complianceStatus": "Manual Review",
+          "finalVerdict": "Not Eligible",
+          "evidence": [
+            {
+              "criterionName": "Minimum technical capability score",
+              "status": "Eligible",
+              "extractedValue": "91 marks",
+              "requiredThreshold": "75 marks",
+              "sourceDocument": "Vendor C_submission.pdf",
+              "reason": "Technical score (91) meets the required threshold of 75 marks.",
+              "confidence": 0.94
+            },
+            {
+              "criterionName": "Average annual turnover",
+              "status": "Not Eligible",
+              "extractedValue": "INR 35 crores",
+              "requiredThreshold": "INR 50 crores",
+              "sourceDocument": "Vendor C_submission.pdf",
+              "reason": "Annual turnover (INR 35 crores) is below the minimum requirement of INR 50 crores.",
+              "confidence": 0.91
+            },
+            {
+              "criterionName": "Valid statutory registrations and non-blacklisting certificate",
+              "status": "Manual Review",
+              "extractedValue": "Missing",
+              "requiredThreshold": "Valid",
+              "sourceDocument": "Vendor C_submission.pdf",
+              "reason": "Vendor is missing required statutory registrations or blacklisting clearance.",
+              "confidence": 0.97
+            }
+          ]
+        }
+      ],
+      "signatures": [],
+      "locked": false,
+      "lockedAt": null,
+      "lockedBy": null
+    }
+  },
+  "audit": [
+    {
+      "id": "audit-ed86c38740a5",
+      "actorName": "Alice Kumar",
+      "actorRole": "Procurement Officer",
+      "action": "report.created",
+      "target": "report:ZT8OcFlNP6oD3Q",
+      "note": "Created report with 1 vendor(s)",
+      "timestamp": "2026-05-04T16:04:07.025335+00:00"
+    },
+    {
+      "id": "audit-3f1a408e442d",
+      "actorName": "Bob Singh",
+      "actorRole": "Legal Reviewer",
+      "action": "report.signed",
+      "target": "report:ZT8OcFlNP6oD3Q",
+      "note": "Decision: approve. Looks compliant.",
+      "timestamp": "2026-05-04T16:04:07.052455+00:00"
+    },
+    {
+      "id": "audit-6d072b137c64",
+      "actorName": "Alice Kumar",
+      "actorRole": "Procurement Officer",
+      "action": "report.locked",
+      "target": "report:ZT8OcFlNP6oD3Q",
+      "note": "Report locked with 1 signature(s)",
+      "timestamp": "2026-05-04T16:04:07.088761+00:00"
+    },
+    {
+      "id": "audit-5b96311d55e1",
+      "actorName": "System",
+      "actorRole": "Rule Engine",
+      "action": "evaluation.run",
+      "target": "3 vendor(s)",
+      "note": "0 eligible, 0 review, 3 rejected",
+      "timestamp": "2026-05-04T16:17:07.036065+00:00"
+    },
+    {
+      "id": "audit-8d8bfc43b2c8",
+      "actorName": "Alice Kumar",
+      "actorRole": "Procurement Officer",
+      "action": "report.created",
+      "target": "report:r61_kxYq57ORUg",
+      "note": "Created report with 3 vendor(s)",
+      "timestamp": "2026-05-04T16:17:07.074787+00:00"
+    },
+    {
+      "id": "audit-4451a6a3cab8",
+      "actorName": "Bob Singh",
+      "actorRole": "Legal Reviewer",
+      "action": "report.signed",
+      "target": "report:r61_kxYq57ORUg",
+      "note": "Decision: approve. All compliance criteria verified.",
+      "timestamp": "2026-05-04T16:17:07.111061+00:00"
+    },
+    {
+      "id": "audit-649915bc2f8c",
+      "actorName": "Ravi Menon",
+      "actorRole": "Finance Head",
+      "action": "report.signed",
+      "target": "report:r61_kxYq57ORUg",
+      "note": "Decision: approve. Financial thresholds met.",
+      "timestamp": "2026-05-04T16:17:07.119553+00:00"
+    },
+    {
+      "id": "audit-379410836c9e",
+      "actorName": "Alice Kumar",
+      "actorRole": "Procurement Officer",
+      "action": "report.locked",
+      "target": "report:r61_kxYq57ORUg",
+      "note": "Report locked with 2 signature(s)",
+      "timestamp": "2026-05-04T16:17:07.128754+00:00"
+    },
+    {
+      "id": "audit-6af1f9246a63",
+      "actorName": "Alice Kumar",
+      "actorRole": "Procurement Officer",
+      "action": "report.created",
+      "target": "report:dcpiF6WrhYyKVQ",
+      "note": "Created report with 3 vendor(s)",
+      "timestamp": "2026-05-04T17:28:41.673125+00:00"
+    },
+    {
+      "id": "audit-eaf783bb5a6d",
+      "actorName": "Alice Kumar",
+      "actorRole": "Procurement Officer",
+      "action": "report.created",
+      "target": "report:3lTZuBj5GMwbpw",
+      "note": "Created report with 3 vendor(s)",
+      "timestamp": "2026-05-05T10:45:41.210567+00:00"
+    }
+  ]
+}
