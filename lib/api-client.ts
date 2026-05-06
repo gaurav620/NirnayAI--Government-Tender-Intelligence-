@@ -52,6 +52,16 @@ export async function updateDocumentStatus(workspaceId: string, documentId: stri
   return res.json();
 }
 
+export async function updateDocumentText(workspaceId: string, documentId: string, extractedText: string) {
+  const res = await fetch(`/api/workspaces/${workspaceId}/documents`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ documentId, extractedText }),
+  });
+  if (!res.ok) throw new Error("Failed to save extracted text");
+  return res.json();
+}
+
 export async function createBidder(workspaceId: string, name: string) {
   const res = await fetch(`/api/workspaces/${workspaceId}/bidders`, {
     method: "POST",

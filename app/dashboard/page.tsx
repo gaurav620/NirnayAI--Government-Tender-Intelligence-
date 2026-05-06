@@ -31,6 +31,7 @@ interface TenderOverviewData {
   criteriaCount: number;
   tenderType: string;
   estimatedBidders: string;
+  extractedCriteria?: any[];
 }
 
 interface Criterion {
@@ -120,30 +121,37 @@ const setStorageData = (data: AppData) => {
 };
 
 // --- AI Helper ---
-async function callAnthropicAPI(system: string, userMessage: string, isTestMode: boolean = false): Promise<string> {
-  // Since Anthropic has been removed and the ML Pipeline does not expose a chat API,
-  // we simulate the responses locally to ensure the UI flow does not break.
+async function _mockResponse(system: string): Promise<string> {
   await new Promise(resolve => setTimeout(resolve, 1500));
-  
   if (system.includes("realistic tender overview")) {
-    return JSON.stringify({"summary": "This tender is for the procurement of tactical equipment. The documents outline technical specifications, financial requirements, and compliance milestones.", "keyRequirements": ["Must have Class-I Local Supplier certification", "Minimum average turnover required", "Technical demo needed"], "criteriaCount": 8, "tenderType": "Goods", "estimatedBidders": "5-10"});
+    return JSON.stringify({"summary":"This tender is for the procurement of tactical equipment. The documents outline technical specifications, financial requirements, and compliance milestones.","keyRequirements":["Must have Class-I Local Supplier certification","Minimum average turnover required","Technical demo needed"],"criteriaCount":8,"tenderType":"Goods","estimatedBidders":"5-10"});
   }
   if (system.includes("ask the user one or more clarifying questions")) {
-    return JSON.stringify({"status": "CLARIFYING", "message": "Could you please specify the exact minimum average annual turnover required for bidders to be eligible?"});
+    return JSON.stringify({"status":"CLARIFYING","message":"Could you please specify the exact minimum average annual turnover required for bidders to be eligible?"});
   }
   if (system.includes("decide if you have enough information")) {
-    return JSON.stringify({"status": "READY", "message": "Thank you for the clarification. The evaluation engine is now fully initialized and ready to assess bidders against the mandatory criteria."});
+    return JSON.stringify({"status":"READY","message":"Thank you for the clarification. The evaluation engine is now fully initialized and ready to assess bidders against the mandatory criteria."});
   }
   if (system.includes("simulate a realistic procurement eligibility evaluation")) {
-    return JSON.stringify({
-      "overallVerdict": "Requires Human Review",
-      "criteria": [
-        { "id": "C1", "description": "Local Supplier Certification", "category": "Compliance", "mandatory": true, "verdict": "Eligible", "sourceDocument": "compliance_cert.pdf", "extractedValue": "Class-I Local Supplier", "reason": "Valid certificate provided.", "confidence": "High" },
-        { "id": "C2", "description": "Minimum Turnover Threshold", "category": "Financial", "mandatory": true, "verdict": "Manual Review", "sourceDocument": "financials_2023.pdf", "extractedValue": "Marginally Below", "reason": "Turnover is slightly below the threshold. Human review required.", "confidence": "Medium" }
-      ]
-    });
+    return JSON.stringify({"overallVerdict":"Requires Human Review","criteria":[{"id":"C1","description":"Local Supplier Certification","category":"Compliance","mandatory":true,"verdict":"Eligible","sourceDocument":"compliance_cert.pdf","extractedValue":"Class-I Local Supplier","reason":"Valid certificate provided.","confidence":"High"},{"id":"C2","description":"Minimum Turnover Threshold","category":"Financial","mandatory":true,"verdict":"Manual Review","sourceDocument":"financials_2023.pdf","extractedValue":"Marginally Below","reason":"Turnover is slightly below the threshold. Human review required.","confidence":"Medium"}]});
   }
   return "Dummy test mode response.";
+}
+
+async function callAnthropicAPI(system: string, userMessage: string, isTestMode: boolean = false): Promise<string> {
+  if (isTestMode) return _mockResponse(system);
+  try {
+    const res = await fetch('/api/ml/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system, message: userMessage }),
+    });
+    if (!res.ok) throw new Error(`ML chat ${res.status}`);
+    const data = await res.json();
+    return data.response || data.text || '';
+  } catch {
+    return _mockResponse(system);
+  }
 }
 
 function parseJSONResponse<T>(text: string): T | null {
@@ -526,19 +534,69 @@ const BidderView = ({ currentFile, currentBidder, data, updateData, setUploadMod
       setIsEvalLoading(true);
       const tenderDocsText = currentFile.tenderDocs.map((d: any) => `Tender Doc (${d.name}):\n${d.extractedText || ''}`).join('\n\n');
       const bidderDocsText = currentBidder.docs.map((d: any) => `Bidder Doc (${d.name}):\n${d.extractedText || ''}`).join('\n\n');
-      
+      const extractedCriteria: any[] = (currentFile.tenderOverview as any)?.extractedCriteria || [];
+
       const fetchEval = async () => {
         try {
-          const systemPrompt = `You are NirnayAI's evaluation engine. Given the tender document text and bidder document text, simulate a realistic procurement eligibility evaluation. Generate criterion-level verdicts. Respond in this exact JSON format with no markdown: {"overallVerdict": "Clearly Eligible" | "Clearly Not Eligible" | "Requires Human Review", "criteria": [{"id": "C1", "description": "...", "category": "Financial" | "Technical" | "Compliance" | "Documentation", "mandatory": true | false, "verdict": "Eligible" | "Not Eligible" | "Manual Review" | "Not Applicable", "sourceDocument": "...", "extractedValue": "...", "reason": "...", "confidence": "High" | "Medium" | "Low"}]}`;
-          const userMsg = `Tender context:\n${tenderDocsText}\n\nBidder name: ${currentBidder.name}\nBidder documents:\n${bidderDocsText}\n\nEvaluate this bidder against the tender criteria. Generate 6 to 10 criteria.`;
-          
-          const responseText = await callAnthropicAPI(systemPrompt, userMsg, data.isTestMode);
-          const evalData = parseJSONResponse<EvaluationResult>(responseText);
-          
+          let evalData: EvaluationResult | null = null;
+
+          // --- Path 1: Real ML evaluation using stored text + criteria ---
+          const combinedBidderText = currentBidder.docs
+            .map((d: any) => (d.extractedText || '').replace(/\[ML_EVIDENCE\].*/s, '').trim())
+            .filter(Boolean)
+            .join('\n\n');
+
+          if (extractedCriteria.length > 0 && combinedBidderText) {
+            try {
+              const res = await fetch('/api/ml/extract-values-json', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ document_text: combinedBidderText, criteria: extractedCriteria }),
+              });
+              if (res.ok) {
+                const mlResult = await res.json();
+                const evidence: any[] = mlResult.evidence || [];
+                if (evidence.length > 0) {
+                  const criteriaItems: Criterion[] = evidence.map((e: any, idx: number) => {
+                    const crit = extractedCriteria[idx] || extractedCriteria.find((c: any) => c.id === e.criterionId) || {};
+                    const conf = typeof e.confidence === 'number' ? e.confidence : 0.75;
+                    return {
+                      id: crit.id || `C${idx + 1}`,
+                      description: e.criterionName || crit.description || crit.label || `Criterion ${idx + 1}`,
+                      category: crit.type ? (crit.type.charAt(0).toUpperCase() + crit.type.slice(1)) : 'General',
+                      mandatory: crit.mandatory ?? false,
+                      verdict: e.status === 'Eligible' ? 'Eligible' : e.status === 'Not Eligible' ? 'Not Eligible' : 'Manual Review',
+                      sourceDocument: e.sourceDocument || `${currentBidder.name}_submission`,
+                      extractedValue: e.extractedValue || 'N/A',
+                      reason: e.reason || '',
+                      confidence: conf >= 0.8 ? 'High' : conf >= 0.5 ? 'Medium' : 'Low',
+                    };
+                  });
+                  const mandatory = criteriaItems.filter(c => c.mandatory);
+                  const hasFail = mandatory.some(c => c.verdict === 'Not Eligible');
+                  const hasReview = mandatory.some(c => c.verdict === 'Manual Review');
+                  const overallVerdict: EvaluationResult['overallVerdict'] = hasFail
+                    ? 'Clearly Not Eligible' : hasReview ? 'Requires Human Review' : 'Clearly Eligible';
+                  evalData = { overallVerdict, criteria: criteriaItems };
+                  console.log(`[ML Eval] Real ML evaluation complete — ${criteriaItems.length} criteria, verdict: ${overallVerdict}`);
+                }
+              }
+            } catch (mlErr) {
+              console.warn('[ML Eval] Real ML path failed, falling back to AI chat:', mlErr);
+            }
+          }
+
+          // --- Path 2: Fallback — AI chat (real /api/ml/chat or local mock) ---
+          if (!evalData) {
+            const systemPrompt = `You are NirnayAI's evaluation engine. Given the tender document text and bidder document text, simulate a realistic procurement eligibility evaluation. Generate criterion-level verdicts. Respond in this exact JSON format with no markdown: {"overallVerdict": "Clearly Eligible" | "Clearly Not Eligible" | "Requires Human Review", "criteria": [{"id": "C1", "description": "...", "category": "Financial" | "Technical" | "Compliance" | "Documentation", "mandatory": true | false, "verdict": "Eligible" | "Not Eligible" | "Manual Review" | "Not Applicable", "sourceDocument": "...", "extractedValue": "...", "reason": "...", "confidence": "High" | "Medium" | "Low"}]}`;
+            const userMsg = `Tender context:\n${tenderDocsText}\n\nBidder name: ${currentBidder.name}\nBidder documents:\n${bidderDocsText}\n\nEvaluate this bidder against the tender criteria. Generate 6 to 10 criteria.`;
+            const responseText = await callAnthropicAPI(systemPrompt, userMsg, data.isTestMode);
+            evalData = parseJSONResponse<EvaluationResult>(responseText);
+          }
+
           if (evalData) {
             const { saveEvaluation } = await import('@/lib/api-client');
             await saveEvaluation(currentFile.id, currentBidder.id, evalData as any);
-
             updateData((prev: any) => ({
               ...prev,
               files: prev.files.map((f: any) => f.id === currentFile.id ? {
@@ -560,10 +618,10 @@ const BidderView = ({ currentFile, currentBidder, data, updateData, setUploadMod
           setIsEvalLoading(false);
         }
       };
-      
+
       fetchEval();
     }
-  }, [isComplete, currentBidder?.evaluationResult, currentBidder?.docs, currentBidder?.id, currentBidder?.name, currentFile?.tenderDocs, currentFile?.id, updateData, isEvalLoading, data.isTestMode]);
+  }, [isComplete, currentBidder?.evaluationResult, currentBidder?.docs, currentBidder?.id, currentBidder?.name, currentFile?.tenderDocs, currentFile?.id, currentFile?.tenderOverview, updateData, isEvalLoading, data.isTestMode]);
 
   if (!hasDocs) {
     return (
@@ -802,33 +860,38 @@ const BidderView = ({ currentFile, currentBidder, data, updateData, setUploadMod
 
 const DocumentPreviewModal = ({ previewDoc, setPreviewDoc }: any) => {
   if (!previewDoc) return null;
+
+  const sizeMB = (previewDoc.size / 1024 / 1024).toFixed(2);
+  const ext = previewDoc.name?.split('.').pop()?.toUpperCase() || 'FILE';
+  const hasText = previewDoc.extractedText && previewDoc.extractedText.trim().length > 0;
+
   return (
     <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-      <div className="bg-slate-50 dark:bg-slate-950 w-full max-w-5xl h-[85vh] shadow-2xl flex flex-col animate-[scaleIn_0.2s_ease-out]">
-        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex justify-between items-center flex-shrink-0">
+      <div className="bg-slate-50 w-full max-w-5xl h-[85vh] shadow-2xl flex flex-col animate-[scaleIn_0.2s_ease-out]">
+        <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-shrink-0">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+            <div className="w-10 h-10 bg-slate-100 flex items-center justify-center">
               {getDocIcon(previewDoc.type)}
             </div>
             <div>
-              <h3 className="text-sm font-black text-[#003366] dark:text-white truncate max-w-lg">{previewDoc.name}</h3>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+              <h3 className="text-sm font-black text-[#003366] truncate max-w-lg">{previewDoc.name}</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 {(previewDoc.size / 1024 / 1024).toFixed(2)} MB • Uploaded {new Date(previewDoc.uploadedAt).toLocaleString()}
               </p>
             </div>
           </div>
-          <button onClick={() => setPreviewDoc(null)} className="text-slate-400 hover:text-red-500 bg-slate-100 dark:bg-slate-800 p-2 transition-colors"><X className="w-5 h-5"/></button>
+          <button onClick={() => setPreviewDoc(null)} className="text-slate-400 hover:text-red-500 bg-slate-100 p-2"><X className="w-5 h-5"/></button>
         </div>
-        <div className="flex-1 p-8 bg-slate-100 dark:bg-slate-950 overflow-y-auto flex justify-center items-start">
-          <div className="w-full max-w-3xl bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 min-h-full p-12 relative flex flex-col items-center justify-center">
+        <div className="flex-1 p-8 bg-slate-100 overflow-y-auto flex justify-center items-start">
+          <div className="w-full max-w-3xl bg-white shadow-sm border border-slate-200 min-h-full p-12 relative flex flex-col items-center justify-center">
             <div className="text-center opacity-30 select-none">
-              <FileText className="w-24 h-24 mx-auto mb-6 text-slate-400 dark:text-slate-600" />
-              <div className="text-2xl font-black uppercase tracking-widest text-slate-400 dark:text-slate-600 mb-2">Simulated Preview</div>
-              <p className="text-sm font-bold text-slate-400 dark:text-slate-600">File contents are not stored in window.storage.</p>
+              <FileText className="w-24 h-24 mx-auto mb-6 text-slate-400" />
+              <div className="text-2xl font-black uppercase tracking-widest text-slate-400 mb-2">Simulated Preview</div>
+              <p className="text-sm font-bold text-slate-400">File contents are not stored in window.storage.</p>
             </div>
-            <div className="absolute inset-12 pointer-events-none opacity-5 dark:opacity-10">
+            <div className="absolute inset-12 pointer-events-none opacity-5">
               {[...Array(20)].map((_, i) => (
-                <div key={i} className="h-4 bg-black dark:bg-white mb-4 rounded-full w-full" style={{ width: `${Math.random() * 40 + 60}%` }} />
+                <div key={i} className="h-4 bg-black mb-4 rounded-full w-full" style={{ width: `${Math.random() * 40 + 60}%` }} />
               ))}
             </div>
           </div>
@@ -837,6 +900,7 @@ const DocumentPreviewModal = ({ previewDoc, setPreviewDoc }: any) => {
     </div>
   );
 };
+
 
 const CreateFileModal = ({ isCreateFileModalOpen, setIsCreateFileModalOpen, handleCreateFile }: any) => {
   if (!isCreateFileModalOpen) return null;
@@ -918,48 +982,40 @@ const UploadModal = ({ uploadModalConfig, setUploadModalConfig, currentFile, upd
     if (selectedFiles.length === 0 || !currentFile) return;
 
     const payloadDocs = selectedFiles.map(f => ({ name: f.name, size: f.size, type: f.type || 'application/octet-stream' }));
-    const filesToProcess = [...selectedFiles]; // Keep reference to actual files for ML pipeline
-
+    const filesToProcess = [...selectedFiles];
     const configType = uploadModalConfig.type;
     const tId = uploadModalConfig.targetId;
     setUploadModalConfig(null);
 
     try {
-      const { addTenderDocuments, addBidderDocuments, updateDocumentStatus, processDocumentML, extractCriteriaML, extractValuesML, updateWorkspace } = await import('@/lib/api-client');
-      let createdDocs;
+      const {
+        addTenderDocuments, addBidderDocuments,
+        updateDocumentStatus, updateDocumentText, updateWorkspace,
+        processDocumentML, extractCriteriaML, extractValuesML,
+      } = await import('@/lib/api-client');
+
+      let createdDocs: any[];
       if (isTender) {
         createdDocs = await addTenderDocuments(currentFile.id, payloadDocs);
       } else {
         createdDocs = await addBidderDocuments(currentFile.id, tId, payloadDocs);
       }
 
-      // Update UI with uploaded docs (status: queued)
-      updateData((prev: any) => {
-        return {
-          files: prev.files.map((f: any) => {
-            if (f.id !== currentFile.id) return f;
-            if (isTender) {
-              return { 
-                ...f, 
-                tenderStatus: 'ml_processing',
-                tenderDocs: [...f.tenderDocs, ...createdDocs] 
-              };
-            } else {
-              return {
-                ...f,
-                bidders: f.bidders.map((b: any) => b.id === tId ? { ...b, docs: [...b.docs, ...createdDocs] } : b)
-              };
-            }
-          })
-        };
-      });
+      updateData((prev: any) => ({
+        files: prev.files.map((f: any) => {
+          if (f.id !== currentFile.id) return f;
+          if (isTender) {
+            return { ...f, tenderStatus: 'ml_processing', tenderDocs: [...f.tenderDocs, ...createdDocs] };
+          }
+          return { ...f, bidders: f.bidders.map((b: any) => b.id === tId ? { ...b, docs: [...b.docs, ...createdDocs] } : b) };
+        })
+      }));
 
-      // --- ML Pipeline Processing ---
-      // Process each file through the Railway ML pipeline
       const processDocs = async () => {
         let hasError = false;
         let errorMessage = "";
-        
+        let allExtractedCriteria: any[] = [];
+
         for (let idx = 0; idx < createdDocs.length; idx++) {
           const doc = createdDocs[idx];
           const originalFile = filesToProcess[idx];
@@ -969,61 +1025,51 @@ const UploadModal = ({ uploadModalConfig, setUploadModalConfig, currentFile, upd
           await updateDocumentStatus(currentFile.id, doc.id, 'scanning');
 
           try {
+            let mlResult: any = null;
             let extractedText = "";
 
-            if (isTender) {
-              console.log(`[ML Pipeline] Processing tender doc: ${originalFile.name}`);
-              const mlResult = await processDocumentML(originalFile);
-              console.log(`[ML Pipeline] OCR complete for: ${originalFile.name}`, mlResult);
-              extractedText = mlResult.extracted_text || "";
+            console.log(`[ML Pipeline] Processing: ${originalFile.name}`);
+            mlResult = await processDocumentML(originalFile);
+            // ML returns { text, full_text, confidence, tier, pages }
+            extractedText = mlResult.full_text || mlResult.text || "";
+            console.log(`[ML Pipeline] OCR complete — tier: ${mlResult.tier}, confidence: ${mlResult.confidence?.toFixed(2)}`);
 
+            if (isTender) {
               try {
+                // extractCriteriaML returns Criteria[] (flat array after route transform)
                 const criteriaResult = await extractCriteriaML(originalFile);
-                console.log(`[ML Pipeline] Criteria extracted:`, criteriaResult);
-                if (criteriaResult.criteria) {
-                  extractedText += "\n\nExtracted Criteria:\n" + JSON.stringify(criteriaResult.criteria, null, 2);
-                }
+                const criteriaArr = Array.isArray(criteriaResult) ? criteriaResult : [];
+                allExtractedCriteria = criteriaArr;
+                console.log(`[ML Pipeline] Extracted ${criteriaArr.length} criteria`);
               } catch (criteriaErr) {
-                console.warn(`[ML Pipeline] Criteria extraction failed (non-critical):`, criteriaErr);
+                console.warn(`[ML Pipeline] Criteria extraction non-critical failure:`, criteriaErr);
               }
             } else {
-              console.log(`[ML Pipeline] Processing bidder doc: ${originalFile.name}`);
-              const mlResult = await processDocumentML(originalFile);
-              console.log(`[ML Pipeline] OCR complete for: ${originalFile.name}`, mlResult);
-              extractedText = mlResult.extracted_text || "";
-
-              try {
-                const tenderCriteria = currentFile.tenderDocs?.length > 0 
-                  ? JSON.stringify({ criteria: "Extract all eligibility criteria values" })
-                  : "";
-                if (tenderCriteria) {
-                  const valuesResult = await extractValuesML(originalFile, tenderCriteria);
-                  console.log(`[ML Pipeline] Values extracted:`, valuesResult);
-                  if (valuesResult.values) {
-                     extractedText += "\n\nExtracted Values:\n" + JSON.stringify(valuesResult.values, null, 2);
+              // For bidder docs, try to extract values against stored tender criteria
+              const tenderCriteria = (currentFile.tenderOverview as any)?.extractedCriteria;
+              if (tenderCriteria?.length > 0) {
+                try {
+                  const valuesResult = await extractValuesML(originalFile, JSON.stringify(tenderCriteria));
+                  // extractValuesML now returns { evidence, ocrTier, ocrConfidence, bidderFile }
+                  const evidenceArr = valuesResult.evidence || [];
+                  if (evidenceArr.length > 0) {
+                    extractedText += "\n\n[ML_EVIDENCE]" + JSON.stringify(evidenceArr);
                   }
+                  console.log(`[ML Pipeline] Extracted ${evidenceArr.length} evidence items`);
+                } catch (valErr) {
+                  console.warn(`[ML Pipeline] Value extraction non-critical failure:`, valErr);
                 }
-              } catch (valErr) {
-                console.warn(`[ML Pipeline] Value extraction failed (non-critical):`, valErr);
               }
             }
 
-            // Save extractedText to UI state
-            updateData((prev: any) => ({
-              ...prev,
-              files: prev.files.map((f: any) => {
-                if (f.id !== currentFile.id) return f;
-                if (isTender) {
-                  return { ...f, tenderDocs: f.tenderDocs.map((d: any) => d.id === doc.id ? { ...d, extractedText } : d) };
-                } else {
-                  return { ...f, bidders: f.bidders.map((b: any) => b.id === tId ? { ...b, docs: b.docs.map((d: any) => d.id === doc.id ? { ...d, extractedText } : d) } : b) };
-                }
-              })
-            }));
+            // Save extracted text to database so evaluation can use it
+            if (extractedText) {
+              await updateDocumentText(currentFile.id, doc.id, extractedText);
+            }
 
             updateData((prev: any) => updateDocStatus(prev, currentFile.id, configType, tId, doc.id, 'complete'));
             await updateDocumentStatus(currentFile.id, doc.id, 'complete');
-            console.log(`[ML Pipeline] ✓ Document processed: ${originalFile.name}`);
+            console.log(`[ML Pipeline] ✓ Processed: ${originalFile.name}`);
 
           } catch (mlErr: any) {
             console.error(`[ML Pipeline] Error processing ${originalFile.name}:`, mlErr);
@@ -1033,7 +1079,7 @@ const UploadModal = ({ uploadModalConfig, setUploadModalConfig, currentFile, upd
             errorMessage = mlErr.message || "Failed to communicate with ML Pipeline";
           }
         }
-        
+
         if (isTender) {
           if (hasError) {
             updateData((prev: any) => ({
@@ -1042,18 +1088,25 @@ const UploadModal = ({ uploadModalConfig, setUploadModalConfig, currentFile, upd
             }));
             await updateWorkspace(currentFile.id, { tenderStatus: 'error' });
           } else {
+            // Save extracted criteria in tenderOverview for use during bidder evaluation
+            const updatedOverview = {
+              ...(currentFile.tenderOverview || {}),
+              ...(allExtractedCriteria.length > 0 ? { extractedCriteria: allExtractedCriteria } : {}),
+            };
+            const patch: any = { tenderStatus: 'scanning' };
+            if (allExtractedCriteria.length > 0) patch.tenderOverview = updatedOverview;
+            await updateWorkspace(currentFile.id, patch);
             updateData((prev: any) => ({
               ...prev,
-              files: prev.files.map((f: any) => f.id === currentFile.id ? { ...f, tenderStatus: 'scanning' } : f)
+              files: prev.files.map((f: any) => f.id === currentFile.id
+                ? { ...f, tenderStatus: 'scanning', tenderOverview: updatedOverview }
+                : f)
             }));
-            await updateWorkspace(currentFile.id, { tenderStatus: 'scanning' });
           }
         }
       };
 
       processDocs();
-
-
     } catch (e) {
       console.error(e);
       alert('Failed to upload documents');

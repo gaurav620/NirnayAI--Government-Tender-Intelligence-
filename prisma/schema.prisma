@@ -55,6 +55,7 @@ model Document {
   type            String
   status          DocStatus      @default(QUEUED)
   uploadedAt      DateTime       @default(now())
+  extractedText   String?        // OCR/ML extracted text content
   fileWorkspaceId String?
   fileWorkspace   FileWorkspace? @relation(fields: [fileWorkspaceId], references: [id], onDelete: Cascade)
   bidderId        String?

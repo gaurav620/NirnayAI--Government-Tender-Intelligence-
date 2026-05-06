@@ -39,6 +39,7 @@ function transformWorkspace(ws: any) {
       type: d.type,
       status: docStatusDbToFe[d.status] || d.status,
       uploadedAt: d.uploadedAt,
+      extractedText: d.extractedText || null,
     })),
     bidders: (ws.bidders || []).map((b: any) => ({
       id: b.id,
@@ -51,6 +52,7 @@ function transformWorkspace(ws: any) {
         type: d.type,
         status: docStatusDbToFe[d.status] || d.status,
         uploadedAt: d.uploadedAt,
+        extractedText: d.extractedText || null,
       })),
       evaluationResult: b.evaluation
         ? {

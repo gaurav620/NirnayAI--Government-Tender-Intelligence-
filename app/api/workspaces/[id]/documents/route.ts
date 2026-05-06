@@ -18,6 +18,7 @@ function transformDoc(d: any) {
     type: d.type,
     status: docStatusDbToFe[d.status] || d.status,
     uploadedAt: d.uploadedAt,
+    extractedText: d.extractedText || null,
   };
 }
 
@@ -64,7 +65,7 @@ export async function POST(
   return NextResponse.json(docs.map(transformDoc), { status: 201 });
 }
 
-// PATCH /api/workspaces/[id]/documents — update document status
+// PATCH /api/workspaces/[id]/documents — update document status or extractedText
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -72,13 +73,20 @@ export async function PATCH(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await params; // just to consume it
+  await params; // consume params
   const body = await request.json();
 
-  const dbStatus = statusFeToDbDoc[body.status] || body.status;
+  const updateData: Record<string, unknown> = {};
+  if (body.status !== undefined) {
+    updateData.status = statusFeToDbDoc[body.status] || body.status;
+  }
+  if (body.extractedText !== undefined) {
+    updateData.extractedText = body.extractedText;
+  }
+
   const doc = await prisma.document.update({
     where: { id: body.documentId },
-    data: { status: dbStatus },
+    data: updateData,
   });
 
   return NextResponse.json(transformDoc(doc));

@@ -84,6 +84,11 @@ class Criteria(_CamelModel):
     threshold: str
     mandatory: bool = False
     confirmed: bool = True
+    # ML pipeline fields — populated when criteria come from Railway /extract-criteria
+    label: Optional[str] = None
+    type: Optional[str] = None        # "financial" | "technical" | "compliance" | "documentation"
+    unit: Optional[str] = None
+    extraction_confidence: Optional[float] = None
 
 
 class CriteriaResponse(_CamelModel):
@@ -99,6 +104,9 @@ class EvidenceItem(_CamelModel):
     source_document: str
     reason: str
     confidence: float = Field(..., ge=0.0, le=1.0)
+    # ML pipeline fields — populated when evidence comes from Railway /extract-values
+    routing: Optional[str] = None   # "PASS_TO_RULE_ENGINE" | "MANUAL_REVIEW"
+    ocr_confidence: Optional[float] = None
 
 
 class VendorResult(_CamelModel):

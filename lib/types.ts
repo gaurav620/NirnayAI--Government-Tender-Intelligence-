@@ -6,6 +6,11 @@ export type Criteria = {
   threshold: string | number;
   mandatory: boolean;
   confirmed?: boolean;
+  // ML pipeline fields (optional — populated when criteria come from Railway ML)
+  label?: string;
+  type?: "financial" | "technical" | "compliance" | "documentation" | string;
+  unit?: string;
+  extractionConfidence?: number;
 };
 
 export type Evidence = {
@@ -16,6 +21,11 @@ export type Evidence = {
   reason: string;
   confidence: number;
   status: EvaluationStatus;
+  // ML pipeline fields (optional — populated when evidence comes from Railway ML)
+  routing?: "PASS_TO_RULE_ENGINE" | "MANUAL_REVIEW";
+  valueFound?: boolean;
+  rawText?: string;
+  ocrConfidence?: number;
 };
 
 export type VendorResult = {
