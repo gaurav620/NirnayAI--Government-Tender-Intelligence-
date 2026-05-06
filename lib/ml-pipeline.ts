@@ -14,6 +14,7 @@
  *   POST /precache         — Pre-cache LLM responses
  */
 
+
 // --- Global ML Pipeline URL ---
 export const ML_PIPELINE_URL = process.env.ML_PIPELINE_URL || process.env.NEXT_PUBLIC_ML_PIPELINE_URL || 'https://web-production-50a8f.up.railway.app';
 
