@@ -1,6 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { docStatusDbToFe } from "../../../../route";
+
+function transformDoc(d: any) {
+  return {
+    id: d.id,
+    name: d.name,
+    size: d.size,
+    type: d.type,
+    status: docStatusDbToFe[d.status] || d.status,
+    uploadedAt: d.uploadedAt,
+  };
+}
 
 // POST /api/workspaces/[id]/bidders/[bidderId]/documents — add docs to a bidder
 export async function POST(
@@ -26,5 +38,5 @@ export async function POST(
     )
   );
 
-  return NextResponse.json(docs, { status: 201 });
+  return NextResponse.json(docs.map(transformDoc), { status: 201 });
 }

@@ -101,3 +101,76 @@ export async function addClarifications(workspaceId: string, entries: { role: st
   if (!res.ok) throw new Error("Failed to add clarifications");
   return res.json();
 }
+
+// --- ML Pipeline Functions ---
+// These call server-side proxy routes which forward to Railway ML API
+
+/**
+ * Check ML pipeline health
+ */
+export async function checkMLPipelineHealth() {
+  const res = await fetch("/api/ml/process-document");
+  if (!res.ok) throw new Error("ML pipeline health check failed");
+  return res.json();
+}
+
+/**
+ * Process a document through the ML pipeline (OCR + text extraction)
+ * @param file - File object from file input
+ */
+export async function processDocumentML(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("action", "process");
+
+  const res = await fetch("/api/ml/process-document", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "ML pipeline error" }));
+    throw new Error(err.error || "Failed to process document");
+  }
+  return res.json();
+}
+
+/**
+ * Extract eligibility criteria from a tender document
+ * @param file - Tender PDF file
+ */
+export async function extractCriteriaML(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("action", "extract-criteria");
+
+  const res = await fetch("/api/ml/process-document", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "ML pipeline error" }));
+    throw new Error(err.error || "Failed to extract criteria");
+  }
+  return res.json();
+}
+
+/**
+ * Extract values from a bidder document against given criteria
+ * @param file - Bidder document file
+ * @param criteria - JSON string of criteria to match against
+ */
+export async function extractValuesML(file: File, criteria: string) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("criteria", criteria);
+
+  const res = await fetch("/api/ml/extract-values", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "ML pipeline error" }));
+    throw new Error(err.error || "Failed to extract values");
+  }
+  return res.json();
+}

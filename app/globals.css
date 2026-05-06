@@ -14,6 +14,66 @@
   --color-text-main: #333333;
   --color-text-muted: #666666;
   --font-primary: 'Roboto', sans-serif;
+  --font-heading: 'Alexandria', sans-serif;
+}
+
+/* ═══════ DARK MODE OVERRIDES ═══════ */
+.dark body {
+  background-color: #001122 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .bg-white {
+  background-color: #001a33 !important;
+}
+
+.dark .bg-slate-50 {
+  background-color: #001122 !important;
+}
+
+.dark .text-\[\#003366\]:not(.keep-dark) {
+  color: #93c5fd !important;
+}
+
+.dark .bg-\[\#003366\] {
+  background-color: #1e3a8a !important;
+}
+
+.dark .border-slate-200, .dark .border-gray-100 {
+  border-color: #1e293b !important;
+}
+
+.dark .border-slate-300 {
+  border-color: #334155 !important;
+}
+
+.dark .text-slate-500, .dark .text-gray-500, .dark .text-slate-400, .dark .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+.dark .text-slate-800, .dark .text-gray-800, .dark .text-slate-700 {
+  color: #f1f5f9 !important;
+}
+
+.dark .hover\:bg-slate-50:hover, .dark .hover\:bg-gray-50:hover {
+  background-color: #002244 !important;
+}
+
+.dark .hover\:bg-white:hover {
+  background-color: #003366 !important;
+}
+
+.dark input, .dark textarea {
+  color: #ffffff !important;
+}
+
+.dark .gov-card {
+  background-color: #001a33 !important;
+  border-color: #1e293b !important;
+}
+
+.dark .spotlight-strip {
+  border-bottom-color: #001122 !important;
 }
 
 /* ═══════ BASE RESET ═══════ */
@@ -28,6 +88,11 @@ body {
   color: var(--color-text-main);
   background-color: var(--color-white);
   line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: 0.025em;
 }
 
 /* ═══════ TRICOLOR ═══════ */
@@ -56,7 +121,7 @@ body {
   background-color: #003366;
   padding: 0 20px;
   display: flex;
-  align-items: center; /* Fixed typo: alignItems -> align-items */
+  align-items: center;
   position: relative;
 }
 

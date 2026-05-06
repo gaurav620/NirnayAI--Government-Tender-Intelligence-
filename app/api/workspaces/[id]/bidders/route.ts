@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { docStatusDbToFe } from "../../route";
 
 // POST /api/workspaces/[id]/bidders — create a new bidder
 export async function POST(
@@ -32,5 +33,19 @@ export async function POST(
     },
   });
 
-  return NextResponse.json(bidder, { status: 201 });
+  // Transform to frontend shape
+  return NextResponse.json({
+    id: bidder.id,
+    name: bidder.name,
+    createdAt: bidder.createdAt,
+    docs: bidder.docs.map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      size: d.size,
+      type: d.type,
+      status: docStatusDbToFe[d.status] || d.status,
+      uploadedAt: d.uploadedAt,
+    })),
+    evaluationResult: null,
+  }, { status: 201 });
 }

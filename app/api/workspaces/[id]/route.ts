@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { statusFeToDb, transformWorkspace, WORKSPACE_INCLUDE } from "../route";
 
 // GET /api/workspaces/[id] — get a single workspace with all relations
 export async function GET(
@@ -17,23 +18,12 @@ export async function GET(
 
   const workspace = await prisma.fileWorkspace.findFirst({
     where: { id, userId: user.id },
-    include: {
-      tenderDocs: true,
-      bidders: {
-        include: {
-          docs: true,
-          evaluation: { include: { criteria: true } },
-        },
-      },
-      clarificationLogs: {
-        orderBy: { createdAt: "asc" },
-      },
-    },
+    include: WORKSPACE_INCLUDE,
   });
 
   if (!workspace) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json(workspace);
+  return NextResponse.json(transformWorkspace(workspace));
 }
 
 // PATCH /api/workspaces/[id] — update workspace fields (name, tenderStatus, tenderOverview)
@@ -58,22 +48,17 @@ export async function PATCH(
 
   const updateData: Record<string, unknown> = {};
   if (body.name !== undefined) updateData.name = body.name;
-  if (body.tenderStatus !== undefined) updateData.tenderStatus = body.tenderStatus;
+  if (body.tenderStatus !== undefined) {
+    // Convert frontend status string to DB enum
+    updateData.tenderStatus = statusFeToDb[body.tenderStatus] || body.tenderStatus;
+  }
   if (body.tenderOverview !== undefined) updateData.tenderOverview = body.tenderOverview;
 
   const workspace = await prisma.fileWorkspace.update({
     where: { id },
     data: updateData,
-    include: {
-      tenderDocs: true,
-      bidders: {
-        include: { docs: true, evaluation: { include: { criteria: true } } },
-      },
-      clarificationLogs: {
-        orderBy: { createdAt: "asc" },
-      },
-    },
+    include: WORKSPACE_INCLUDE,
   });
 
-  return NextResponse.json(workspace);
+  return NextResponse.json(transformWorkspace(workspace));
 }

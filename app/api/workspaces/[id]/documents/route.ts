@@ -1,6 +1,25 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { docStatusDbToFe } from "../../route";
+
+const statusFeToDbDoc: Record<string, string> = {
+  queued: "QUEUED",
+  scanning: "SCANNING",
+  complete: "COMPLETE",
+  failed: "FAILED",
+};
+
+function transformDoc(d: any) {
+  return {
+    id: d.id,
+    name: d.name,
+    size: d.size,
+    type: d.type,
+    status: docStatusDbToFe[d.status] || d.status,
+    uploadedAt: d.uploadedAt,
+  };
+}
 
 // POST /api/workspaces/[id]/documents — add documents to a workspace
 export async function POST(
@@ -42,7 +61,7 @@ export async function POST(
     data: { tenderStatus: "SCANNING" },
   });
 
-  return NextResponse.json(docs, { status: 201 });
+  return NextResponse.json(docs.map(transformDoc), { status: 201 });
 }
 
 // PATCH /api/workspaces/[id]/documents — update document status
@@ -56,10 +75,11 @@ export async function PATCH(
   await params; // just to consume it
   const body = await request.json();
 
+  const dbStatus = statusFeToDbDoc[body.status] || body.status;
   const doc = await prisma.document.update({
     where: { id: body.documentId },
-    data: { status: body.status },
+    data: { status: dbStatus },
   });
 
-  return NextResponse.json(doc);
+  return NextResponse.json(transformDoc(doc));
 }
