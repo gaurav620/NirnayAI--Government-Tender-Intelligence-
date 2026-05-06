@@ -756,41 +756,89 @@ const BidderView = ({ currentFile, currentBidder, data, updateData, setUploadMod
 
 const DocumentPreviewModal = ({ previewDoc, setPreviewDoc }: any) => {
   if (!previewDoc) return null;
+
+  const isImage = previewDoc.type?.startsWith('image/');
+  const isPdf = previewDoc.type === 'application/pdf' || previewDoc.name?.endsWith('.pdf');
+  const sizeMB = (previewDoc.size / 1024 / 1024).toFixed(2);
+  const ext = previewDoc.name?.split('.').pop()?.toUpperCase() || 'FILE';
+
   return (
     <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-      <div className="bg-slate-50 w-full max-w-5xl h-[85vh] shadow-2xl flex flex-col animate-[scaleIn_0.2s_ease-out]">
-        <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-slate-100 flex items-center justify-center">
+      <div className="bg-slate-50 w-full max-w-2xl shadow-2xl flex flex-col animate-[scaleIn_0.2s_ease-out] rounded-sm">
+        {/* Header */}
+        <div className="bg-[#003366] text-white px-6 py-4 flex justify-between items-center flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-white/10 flex items-center justify-center rounded">
               {getDocIcon(previewDoc.type)}
             </div>
             <div>
-              <h3 className="text-sm font-black text-[#003366] truncate max-w-lg">{previewDoc.name}</h3>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                {(previewDoc.size / 1024 / 1024).toFixed(2)} MB • Uploaded {new Date(previewDoc.uploadedAt).toLocaleString()}
+              <h3 className="text-sm font-black truncate max-w-sm">{previewDoc.name}</h3>
+              <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mt-0.5">
+                {ext} · {sizeMB} MB
               </p>
             </div>
           </div>
-          <button onClick={() => setPreviewDoc(null)} className="text-slate-400 hover:text-red-500 bg-slate-100 p-2"><X className="w-5 h-5"/></button>
+          <button onClick={() => setPreviewDoc(null)} className="text-white/50 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded transition-all">
+            <X className="w-5 h-5"/>
+          </button>
         </div>
-        <div className="flex-1 p-8 bg-slate-100 overflow-y-auto flex justify-center items-start">
-          <div className="w-full max-w-3xl bg-white shadow-sm border border-slate-200 min-h-full p-12 relative flex flex-col items-center justify-center">
-            <div className="text-center opacity-30 select-none">
-              <FileText className="w-24 h-24 mx-auto mb-6 text-slate-400" />
-              <div className="text-2xl font-black uppercase tracking-widest text-slate-400 mb-2">Simulated Preview</div>
-              <p className="text-sm font-bold text-slate-400">File contents are not stored in window.storage.</p>
+
+        {/* Document Details */}
+        <div className="p-8 space-y-6">
+          {/* Metadata Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { label: 'File Name', value: previewDoc.name },
+              { label: 'File Type', value: previewDoc.type || ext },
+              { label: 'Size', value: `${sizeMB} MB` },
+              { label: 'Uploaded', value: new Date(previewDoc.uploadedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) },
+              { label: 'Status', value: previewDoc.status?.toUpperCase() || 'COMPLETE' },
+              { label: 'Document ID', value: previewDoc.id?.slice(0, 12) + '...' },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white border border-slate-200 p-4 rounded-sm">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                <p className="text-xs font-bold text-[#003366] truncate" title={value}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Info Banner */}
+          <div className="bg-amber-50 border border-amber-200 p-4 flex items-start gap-3 rounded-sm">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-black text-amber-800 uppercase tracking-wider mb-1">Document Metadata Only</p>
+              <p className="text-xs text-amber-700">
+                NirnayAI stores document metadata for processing. The original file was processed by the ML pipeline during upload. 
+                To re-access the file, please re-upload it.
+              </p>
             </div>
-            <div className="absolute inset-12 pointer-events-none opacity-5">
-              {[...Array(20)].map((_, i) => (
-                <div key={i} className="h-4 bg-black mb-4 rounded-full w-full" style={{ width: `${Math.random() * 40 + 60}%` }} />
-              ))}
-            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setPreviewDoc(null)}
+              className="px-6 py-2.5 text-xs font-bold text-slate-600 uppercase tracking-widest border border-slate-300 hover:bg-slate-100 transition-all"
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                // Copy doc name to clipboard as a helpful action
+                navigator.clipboard?.writeText(previewDoc.name);
+              }}
+              className="px-6 py-2.5 text-xs font-bold bg-[#003366] text-white uppercase tracking-widest hover:bg-[#002244] transition-all flex items-center gap-2"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Copy File Name
+            </button>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
 
 const CreateFileModal = ({ isCreateFileModalOpen, setIsCreateFileModalOpen, handleCreateFile }: any) => {
   if (!isCreateFileModalOpen) return null;
