@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const buffer = new Uint8Array(await file.arrayBuffer());
 
     if (action === "extract-criteria") {
       // Extract eligibility criteria from tender document

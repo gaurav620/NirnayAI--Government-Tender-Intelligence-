@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No criteria provided" }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const buffer = new Uint8Array(await file.arrayBuffer());
     const result = await extractValues(buffer, file.name, criteria);
     return NextResponse.json(result);
   } catch (error: unknown) {

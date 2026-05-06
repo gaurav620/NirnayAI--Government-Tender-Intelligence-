@@ -75,9 +75,9 @@ export async function checkMLHealth(): Promise<MLHealthResponse> {
  * @param file - File buffer or Blob
  * @param filename - Original filename
  */
-export async function processDocument(file: Buffer | Blob, filename: string): Promise<ProcessDocumentResponse> {
+export async function processDocument(file: Uint8Array | Blob, filename: string): Promise<ProcessDocumentResponse> {
   const formData = new FormData();
-  const blob = file instanceof Buffer ? new Blob([file]) : file;
+  const blob = file instanceof Blob ? file : new Blob([file as unknown as BlobPart]);
   formData.append('file', blob, filename);
 
   const res = await fetch(`${ML_PIPELINE_URL}/process-document`, {
@@ -96,9 +96,9 @@ export async function processDocument(file: Buffer | Blob, filename: string): Pr
  * @param file - File buffer or Blob
  * @param filename - Original filename
  */
-export async function extractCriteria(file: Buffer | Blob, filename: string): Promise<ExtractCriteriaResponse> {
+export async function extractCriteria(file: Uint8Array | Blob, filename: string): Promise<ExtractCriteriaResponse> {
   const formData = new FormData();
-  const blob = file instanceof Buffer ? new Blob([file]) : file;
+  const blob = file instanceof Blob ? file : new Blob([file as unknown as BlobPart]);
   formData.append('file', blob, filename);
 
   const res = await fetch(`${ML_PIPELINE_URL}/extract-criteria`, {
@@ -118,9 +118,9 @@ export async function extractCriteria(file: Buffer | Blob, filename: string): Pr
  * @param filename - Original filename
  * @param criteria - JSON string of criteria to match against
  */
-export async function extractValues(file: Buffer | Blob, filename: string, criteria: string): Promise<ExtractValuesResponse> {
+export async function extractValues(file: Uint8Array | Blob, filename: string, criteria: string): Promise<ExtractValuesResponse> {
   const formData = new FormData();
-  const blob = file instanceof Buffer ? new Blob([file]) : file;
+  const blob = file instanceof Blob ? file : new Blob([file as unknown as BlobPart]);
   formData.append('file', blob, filename);
   formData.append('criteria', criteria);
 
