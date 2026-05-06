@@ -57,3 +57,6 @@ backend/models/*.onnx
 coverage/
 .cache/
 .turbo/
+
+NirnayAI_Project_Proposal.pdf
+DEV_FILES/
