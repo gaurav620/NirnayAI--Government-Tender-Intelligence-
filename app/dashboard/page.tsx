@@ -1406,6 +1406,7 @@ const UploadModal = ({ uploadModalConfig, setUploadModalConfig, currentFile, upd
               }
             }
 
+
             updateData((prev: any) => updateDocStatus(prev, currentFile.id, configType, tId, doc.id, 'complete'));
             await updateDocumentStatus(currentFile.id, doc.id, 'complete');
             console.log(`[ML Pipeline] ✓ Done: ${originalFile.name}${mlResult ? "" : " (no OCR — ML unavailable)"}`);
