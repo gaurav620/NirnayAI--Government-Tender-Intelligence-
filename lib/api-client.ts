@@ -52,6 +52,19 @@ export async function updateDocumentStatus(workspaceId: string, documentId: stri
   return res.json();
 }
 
+export async function updateDocumentText(workspaceId: string, documentId: string, extractedText: string) {
+  const res = await fetch(`/api/workspaces/${workspaceId}/documents`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ documentId, extractedText }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Failed to save extracted text (${res.status}): ${detail}`);
+  }
+  return res.json();
+}
+
 export async function createBidder(workspaceId: string, name: string) {
   const res = await fetch(`/api/workspaces/${workspaceId}/bidders`, {
     method: "POST",
@@ -155,7 +168,9 @@ export async function extractCriteriaML(file: File) {
 }
 
 /**
- * Extract values from a bidder document against given criteria
+ * Extract values from a bidder document against given criteria.
+ * Returns PASS_TO_RULE_ENGINE or MANUAL_REVIEW routing per criterion.
+ * Use evaluateBidderML() for final ELIGIBLE/NOT_ELIGIBLE verdicts.
  * @param file - Bidder document file
  * @param criteria - JSON string of criteria to match against
  */
@@ -174,3 +189,77 @@ export async function extractValuesML(file: File, criteria: string) {
   }
   return res.json();
 }
+
+// ── v2: New client functions ──────────────────────────────────────────────────
+
+/**
+ * [v2] Full pipeline evaluation for a single bidder.
+ * OCR → value extraction → rule engine → ELIGIBLE/NOT_ELIGIBLE/MANUAL_REVIEW.
+ * Returns criterion-level verdicts with reasons, extracted values, and thresholds.
+ * All decisions are audit-logged automatically.
+ *
+ * @param file     - Bidder document (PDF, DOCX, XLSX, CSV, JPG, PNG)
+ * @param criteria - JSON string of MLCriterion[] from extractCriteriaML()
+ */
+export async function evaluateBidderML(file: File, criteria: string) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("criteria", criteria);
+
+  const res = await fetch("/api/ml/evaluate-bidder", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "ML pipeline error" }));
+    throw new Error(err.error || "Failed to evaluate bidder");
+  }
+  return res.json();
+}
+
+/**
+ * [v2] Generate a structured evaluation report from batch evaluation results.
+ * Returns a JSON document with executive summary, criterion reference,
+ * per-bidder evaluations, and an audit note for formal procurement use.
+ *
+ * @param tenderTitle       - Human-readable tender name (e.g. "CRPF Security Equipment Tender 2024")
+ * @param evaluationResults - Output from /evaluate-batch (BatchEvaluationResult shape)
+ */
+export async function generateReportML(
+  tenderTitle: string,
+  evaluationResults: Record<string, unknown>
+) {
+  const res = await fetch("/api/ml/report", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tender_title: tenderTitle, evaluation_results: evaluationResults }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Report generation error" }));
+    throw new Error(err.error || "Failed to generate report");
+  }
+  return res.json();
+}
+
+/**
+ * [v2] Get aggregate decision counts from the immutable audit database.
+ * Use after evaluations to confirm all decisions were logged.
+ */
+export async function getAuditStatsML() {
+  const res = await fetch("/api/ml/report");
+  if (!res.ok) throw new Error("Failed to fetch audit stats");
+  return res.json();
+}
+
+/**
+ * [v2] Get the full audit trail for a specific bidder file.
+ * Returns every criterion-level decision logged for that bidder.
+ *
+ * @param bidderFile - Filename of the bidder document
+ */
+export async function getBidderAuditTrailML(bidderFile: string) {
+  const res = await fetch(`/api/ml/report?bidder=${encodeURIComponent(bidderFile)}`);
+  if (!res.ok) throw new Error("Failed to fetch audit trail");
+  return res.json();
+}
+

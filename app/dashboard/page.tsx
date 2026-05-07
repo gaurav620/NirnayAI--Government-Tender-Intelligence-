@@ -3,13 +3,47 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { 
-  FileText, Plus, Folder, Trash2, X, UploadCloud, CheckCircle2, 
-  Clock, AlertCircle, File, Image as ImageIcon, Send, ChevronRight, ChevronDown, ChevronLeft, User, Shield, Eye, Lock
+  FileText, Plus, Folder, Trash2, X, UploadCloud, CheckCircle2,
+  Clock, AlertCircle, File, Image as ImageIcon, Send, ChevronRight, ChevronDown, ChevronLeft, User, Shield, Eye, Lock,
+  Search, Copy, Check
 } from 'lucide-react';
 import { UserButton } from "@clerk/nextjs";
 import { DotPattern } from "@/components/ui/dot-pattern";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { cn } from "@/lib/utils";
+
+// --- IndexedDB helpers: store original file blobs for preview ---
+const IDB_NAME = 'nirnay-docs';
+const IDB_STORE = 'files';
+
+function openDocIDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveFileIDB(docId: string, file: File): Promise<void> {
+  const db = await openDocIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(file, docId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function getFileIDB(docId: string): Promise<File | null> {
+  const db = await openDocIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(docId);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
 
 // --- Types ---
 type FileStatus = 'queued' | 'scanning' | 'complete' | 'failed';
@@ -31,6 +65,7 @@ interface TenderOverviewData {
   criteriaCount: number;
   tenderType: string;
   estimatedBidders: string;
+  extractedCriteria?: any[];
 }
 
 interface Criterion {
@@ -120,43 +155,71 @@ const setStorageData = (data: AppData) => {
 };
 
 // --- AI Helper ---
-async function callAnthropicAPI(system: string, userMessage: string, isTestMode: boolean = false): Promise<string> {
-  // Since Anthropic has been removed and the ML Pipeline does not expose a chat API,
-  // we simulate the responses locally to ensure the UI flow does not break.
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
+const MOCK_CRITERIA = [
+  {"id":"C1","label":"Minimum Annual Turnover","description":"Bidder must have minimum average annual turnover of ₹10 Crore in the last 3 financial years.","threshold":"₹10 Crore","mandatory":true,"type":"financial"},
+  {"id":"C2","label":"Prior Experience","description":"Bidder must have at least 3 years of experience in supplying similar goods/services to government entities.","threshold":"3 years","mandatory":true,"type":"technical"},
+  {"id":"C3","label":"Local Supplier Certification","description":"Bidder must hold a valid Class-I or Class-II Local Supplier certificate as per Make in India policy.","threshold":"Class-I or II","mandatory":true,"type":"compliance"},
+  {"id":"C4","label":"GST Registration","description":"Bidder must be registered under GST and provide a valid GSTIN.","threshold":"Valid GSTIN","mandatory":true,"type":"documentation"},
+  {"id":"C5","label":"ISO Certification","description":"Bidder should hold ISO 9001:2015 or equivalent quality management certification.","threshold":"ISO 9001:2015","mandatory":false,"type":"compliance"},
+  {"id":"C6","label":"EMD Deposit","description":"Earnest Money Deposit as specified in the tender notice must be submitted.","threshold":"As specified","mandatory":true,"type":"financial"},
+];
+
+async function _mockResponse(system: string): Promise<string> {
+  await new Promise(resolve => setTimeout(resolve, 1200));
   if (system.includes("realistic tender overview")) {
-    return JSON.stringify({"summary": "This tender is for the procurement of tactical equipment. The documents outline technical specifications, financial requirements, and compliance milestones.", "keyRequirements": ["Must have Class-I Local Supplier certification", "Minimum average turnover required", "Technical demo needed"], "criteriaCount": 8, "tenderType": "Goods", "estimatedBidders": "5-10"});
+    return JSON.stringify({"summary":"This tender is for the procurement of tactical equipment. The documents outline technical specifications, financial requirements, and compliance milestones.","keyRequirements":["Must have Class-I Local Supplier certification","Minimum average turnover required","Technical demo needed"],"criteriaCount":8,"tenderType":"Goods","estimatedBidders":"5-10"});
   }
-  if (system.includes("ask the user one or more clarifying questions")) {
-    return JSON.stringify({"status": "CLARIFYING", "message": "Could you please specify the exact minimum average annual turnover required for bidders to be eligible?"});
-  }
-  if (system.includes("decide if you have enough information")) {
-    return JSON.stringify({"status": "READY", "message": "Thank you for the clarification. The evaluation engine is now fully initialized and ready to assess bidders against the mandatory criteria."});
+  if (system.includes("Extract ALL eligibility criteria")) {
+    return JSON.stringify(MOCK_CRITERIA);
   }
   if (system.includes("simulate a realistic procurement eligibility evaluation")) {
-    return JSON.stringify({
-      "overallVerdict": "Requires Human Review",
-      "criteria": [
-        { "id": "C1", "description": "Local Supplier Certification", "category": "Compliance", "mandatory": true, "verdict": "Eligible", "sourceDocument": "compliance_cert.pdf", "extractedValue": "Class-I Local Supplier", "reason": "Valid certificate provided.", "confidence": "High" },
-        { "id": "C2", "description": "Minimum Turnover Threshold", "category": "Financial", "mandatory": true, "verdict": "Manual Review", "sourceDocument": "financials_2023.pdf", "extractedValue": "Marginally Below", "reason": "Turnover is slightly below the threshold. Human review required.", "confidence": "Medium" }
-      ]
-    });
+    return JSON.stringify({"overallVerdict":"Requires Human Review","criteria":[{"id":"C1","description":"Local Supplier Certification","category":"Compliance","mandatory":true,"verdict":"Eligible","sourceDocument":"compliance_cert.pdf","extractedValue":"Class-I Local Supplier","reason":"Valid certificate provided.","confidence":"High"},{"id":"C2","description":"Minimum Turnover Threshold","category":"Financial","mandatory":true,"verdict":"Manual Review","sourceDocument":"financials_2023.pdf","extractedValue":"Marginally Below","reason":"Turnover is slightly below the threshold. Human review required.","confidence":"Medium"}]});
   }
-  return "Dummy test mode response.";
+  return "[]";
+}
+
+async function callAnthropicAPI(system: string, userMessage: string, isTestMode: boolean = false): Promise<string> {
+  if (isTestMode) return _mockResponse(system);
+  try {
+    const res = await fetch('/api/ml/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system, message: userMessage }),
+    });
+    if (!res.ok) throw new Error(`ML chat ${res.status}`);
+    const data = await res.json();
+    const text = data.response || data.text || '';
+    return text || _mockResponse(system);
+  } catch {
+    return _mockResponse(system);
+  }
 }
 
 function parseJSONResponse<T>(text: string): T | null {
-  try {
-    let cleanText = text.trim();
-    if (cleanText.startsWith('```json')) cleanText = cleanText.substring(7);
-    else if (cleanText.startsWith('```')) cleanText = cleanText.substring(3);
-    if (cleanText.endsWith('```')) cleanText = cleanText.substring(0, cleanText.length - 3);
-    return JSON.parse(cleanText) as T;
-} catch (e) {
-    console.error("Failed to parse JSON from AI response:", text);
-    return null;
-  }
+  if (!text || typeof text !== 'string') return null;
+
+  // Attempt 1: Try raw text directly (model returned clean JSON)
+  try { return JSON.parse(text.trim()) as T; } catch {}
+
+  // Attempt 2: Strip markdown code fences (```json ... ``` or ``` ... ```)
+  // Also strips any warning text that appears AFTER the closing ```
+  let stripped = text.trim();
+  // Remove leading fence
+  stripped = stripped.replace(/^```(?:json)?\s*/i, '');
+  // Keep only up to the first closing fence (drop trailing warning blocks)
+  const closingFence = stripped.indexOf('```');
+  if (closingFence !== -1) stripped = stripped.substring(0, closingFence);
+  stripped = stripped.trim();
+  try { return JSON.parse(stripped) as T; } catch {}
+
+  // Attempt 3: Extract first JSON array or object from anywhere in the text
+  const arrMatch = text.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+  if (arrMatch) try { return JSON.parse(arrMatch[0]) as T; } catch {}
+  const objMatch = text.match(/\{[\s\S]*\}/);
+  if (objMatch) try { return JSON.parse(objMatch[0]) as T; } catch {}
+
+  console.error('Failed to parse JSON from AI response (all 3 strategies failed). First 200 chars:', text.slice(0, 200));
+  return null;
 }
 
 const animatedCache = new Set<string>();
@@ -214,9 +277,54 @@ const useBodyScrollLock = (isLocked: boolean) => {
 const TenderOverviewView = ({ currentFile, data, updateData, setUploadModalConfig, setPreviewDoc }: any) => {
   if (!currentFile) return null;
   
-  const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [editingCriteria, setEditingCriteria] = useState<any[] | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Sync editing state when extracted criteria arrive
+  const extractedCriteria: any[] = currentFile.tenderOverview?.extractedCriteria || [];
+  const activeCriteria = editingCriteria ?? extractedCriteria;
+
+  const handleConfirmCriteria = async () => {
+    setIsConfirming(true);
+    try {
+      const { updateWorkspace } = await import('@/lib/api-client');
+      const updatedOverview = { ...(currentFile.tenderOverview || {}), extractedCriteria: activeCriteria };
+      await updateWorkspace(currentFile.id, { tenderOverview: updatedOverview, tenderStatus: 'ready' });
+      updateData((prev: any) => ({
+        ...prev,
+        files: prev.files.map((f: any) => f.id === currentFile.id
+          ? { ...f, tenderOverview: updatedOverview, tenderStatus: 'ready' }
+          : f)
+      }));
+      setEditingCriteria(null);
+    } catch (e) {
+      console.error('Confirm criteria failed', e);
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const updateCriterion = (idx: number, field: string, value: any) => {
+    setEditingCriteria(prev => {
+      const base = prev ?? extractedCriteria;
+      return base.map((c: any, i: number) => i === idx ? { ...c, [field]: value } : c);
+    });
+  };
+
+  const removeCriterion = (idx: number) => {
+    setEditingCriteria(prev => {
+      const base = prev ?? extractedCriteria;
+      return base.filter((_: any, i: number) => i !== idx);
+    });
+  };
+
+  const addCriterion = () => {
+    const base = editingCriteria ?? extractedCriteria;
+    const newId = `C${base.length + 1}`;
+    setEditingCriteria([...base, { id: newId, label: '', description: '', threshold: '', mandatory: true, type: 'technical' }]);
+  };
 
   useEffect(() => {
     setTimeout(() => {
@@ -227,40 +335,100 @@ const TenderOverviewView = ({ currentFile, data, updateData, setUploadModalConfi
   }, [currentFile?.clarificationLog?.length]);
 
   useEffect(() => {
-    if (currentFile.tenderStatus === 'scanning' && !isChatLoading) {
+    const needsExtraction =
+      currentFile.tenderStatus === 'scanning' ||
+      (currentFile.tenderStatus === 'clarifying' && !extractedCriteria.length);
+
+    if (needsExtraction && !isChatLoading) {
       setIsChatLoading(true);
-      const documentsText = currentFile.tenderDocs.map((d: any) => `Filename: ${d.name}\nContent: ${d.extractedText || 'No text extracted'}`).join('\n\n---\n\n');
-      
+
+      // Build document text — detect scanned/empty PDFs early
+      const docsWithText = currentFile.tenderDocs.filter((d: any) => {
+        const t = (d.extractedText || '').trim();
+        // Reject empty, CID-only (scanned PDF glyphs), or very short text
+        const hasMeaningfulText = t.length > 100 && !/^(\(cid:\d+\)\s*)+$/.test(t);
+        return hasMeaningfulText;
+      });
+      const documentsText = docsWithText
+        .map((d: any) => `Filename: ${d.name}\nContent: ${d.extractedText!.substring(0, 40000)}`)
+        .join('\n\n---\n\n');
+
       const fetchInitialSetup = async () => {
         try {
-          const systemPrompt = `You are NirnayAI, a government procurement analysis assistant. Generate a realistic tender overview based on the provided document text. JSON format: {"summary": "2-3 sentences", "keyRequirements": ["req 1", "req 2"], "criteriaCount": 8, "tenderType": "Services", "estimatedBidders": "10-25"}`;
+          // ── Guard: no usable text extracted (scanned / encrypted PDF) ──────
+          if (!documentsText) {
+            // Surface informative criteria stubs so officer can fill manually
+            const fallbackCriteria = [
+              { id: 'C1', label: 'Annual Turnover', description: 'Minimum annual turnover — please enter threshold from tender.', threshold: '', mandatory: true, type: 'financial' },
+              { id: 'C2', label: 'Prior Experience', description: 'Years of relevant experience — please enter threshold from tender.', threshold: '', mandatory: true, type: 'technical' },
+              { id: 'C3', label: 'Quality Certification', description: 'Required quality certification (e.g. ISO 9001) — please verify.', threshold: '', mandatory: true, type: 'compliance' },
+              { id: 'C4', label: 'GST Registration', description: 'Valid GST registration certificate required.', threshold: 'Valid GST', mandatory: true, type: 'compliance' },
+              { id: 'C5', label: 'EMD / Bank Guarantee', description: 'Earnest Money Deposit or bank guarantee — please enter amount from tender.', threshold: '', mandatory: true, type: 'documentation' },
+            ];
+            const { updateWorkspace } = await import('@/lib/api-client');
+            const updatedOverview = {
+              summary: 'The uploaded document appears to be a scanned or image-based PDF — text could not be extracted automatically. Please fill in the criteria thresholds manually before confirming.',
+              keyRequirements: ['Manual criteria entry required — OCR could not read this document'],
+              criteriaCount: fallbackCriteria.length,
+              tenderType: 'Unknown',
+              estimatedBidders: 'Unknown',
+              extractedCriteria: fallbackCriteria,
+              ocrWarning: true,
+            };
+            await updateWorkspace(currentFile.id, { tenderOverview: updatedOverview, tenderStatus: 'clarifying' });
+            updateData((prev: any) => ({
+              ...prev,
+              files: prev.files.map((f: any) => f.id === currentFile.id
+                ? { ...f, tenderOverview: updatedOverview, tenderStatus: 'clarifying' }
+                : f)
+            }));
+            setIsChatLoading(false);
+            return;
+          }
+
+          // Step 1: Generate tender overview
+          const systemPrompt = `You are NirnayAI, a government procurement analysis assistant. Generate a realistic tender overview based on the provided document text. Return ONLY valid JSON, no markdown fences: {"summary": "2-3 sentences", "keyRequirements": ["req 1", "req 2"], "criteriaCount": 8, "tenderType": "Goods|Services|Works", "estimatedBidders": "10-25"}`;
           const overviewText = await callAnthropicAPI(systemPrompt, `Tender documents content:\n${documentsText}`, data.isTestMode);
           const overviewData = parseJSONResponse<TenderOverviewData>(overviewText);
 
-          const clarifyPrompt = `You are NirnayAI, an evaluation engine. You MUST ask the user one or more clarifying questions about the tender documents to ensure you have sufficient context before evaluating bidders. Respond strictly in this JSON format: {"status": "CLARIFYING", "message": "Your question here..."}`;
-          const clarifyText = await callAnthropicAPI(clarifyPrompt, `Tender documents content:\n${documentsText}\n\nBased on this content, ask your first clarifying question.`, data.isTestMode);
-          const clarifyData = parseJSONResponse<{status: string, message: string}>(clarifyText);
+          // Step 2: Auto-extract eligibility criteria for officer review
+          const criteriaPrompt = `You are NirnayAI, a government procurement AI. Extract ALL eligibility criteria from the tender document text below. Return ONLY a valid JSON array with no markdown fences, no explanation text, no warnings: [{"id":"C1","label":"Short Name","description":"Full criterion text from the document","threshold":"Exact value/requirement from the document","mandatory":true,"type":"financial|technical|compliance|documentation"}]. If you cannot find a specific threshold value in the document text, set threshold to empty string \"\". Extract 5-10 criteria.`;
+          const criteriaText = await callAnthropicAPI(criteriaPrompt, `Tender document:\n${documentsText}`, data.isTestMode);
+          let parsedCriteria: any[] = parseJSONResponse<any[]>(criteriaText) || [];
+          if (!Array.isArray(parsedCriteria)) parsedCriteria = [];
 
-          const aiContent = clarifyData?.message || "Could you provide more context on the mandatory financial criteria for this tender?";
+          // Filter out hallucinated placeholders where LLM admitted it couldn't find the value
+          const HALLUCINATION_MARKERS = ['unable to extract', 'not available', 'document text not available', 'not found in document'];
+          const cleanedCriteria = parsedCriteria.map((c: any, i: number) => ({
+            ...c,
+            id: c.id || `C${i + 1}`,
+            label: c.label || c.description?.substring(0, 50) || `Criterion ${i + 1}`,
+            mandatory: c.mandatory !== false,
+            // Clear threshold if LLM admitted it couldn't find it
+            threshold: HALLUCINATION_MARKERS.some(m =>
+              (c.threshold || '').toLowerCase().includes(m)
+            ) ? '' : (c.threshold || ''),
+          }));
 
-          const { updateWorkspace, addClarification } = await import('@/lib/api-client');
-          await updateWorkspace(currentFile.id, { tenderOverview: overviewData, tenderStatus: 'clarifying' });
-          await addClarification(currentFile.id, 'ai', aiContent);
+          const { updateWorkspace } = await import('@/lib/api-client');
+          const updatedOverview = { ...(overviewData || {}), extractedCriteria: cleanedCriteria };
+          await updateWorkspace(currentFile.id, { tenderOverview: updatedOverview, tenderStatus: 'clarifying' });
 
           updateData((prev: any) => ({
             ...prev,
             files: prev.files.map((f: any) => f.id === currentFile.id ? {
-              ...f, 
-              tenderOverview: overviewData || f.tenderOverview,
+              ...f,
+              tenderOverview: updatedOverview,
               tenderStatus: 'clarifying',
-              clarificationLog: [{ role: 'ai', content: aiContent }]
             } : f)
           }));
         } catch (e: any) {
-          console.error("Setup failed", e);
+          console.error('Setup failed', e);
           updateData((prev: any) => ({
             ...prev,
-            files: prev.files.map((f: any) => f.id === currentFile.id ? { ...f, tenderStatus: 'error', errorMessage: e.message || 'AI Initialization Failed' } : f)
+            files: prev.files.map((f: any) => f.id === currentFile.id
+              ? { ...f, tenderStatus: 'error', errorMessage: e.message || 'AI Initialization Failed' }
+              : f)
           }));
         } finally {
           setIsChatLoading(false);
@@ -268,65 +436,8 @@ const TenderOverviewView = ({ currentFile, data, updateData, setUploadModalConfi
       };
       fetchInitialSetup();
     }
-  }, [currentFile?.tenderStatus, currentFile?.tenderDocs, currentFile?.id, updateData, isChatLoading, data.isTestMode]);
+  }, [currentFile?.tenderStatus, currentFile?.tenderDocs, currentFile?.id, updateData, isChatLoading, data.isTestMode, extractedCriteria.length]);
 
-  const handleAnswerQuestion = async (msg: string) => {
-    if (!msg.trim() || isChatLoading) return;
-    
-    const newHistory = [...currentFile.clarificationLog, { role: 'user' as const, content: msg }];
-    updateData((prev: any) => ({
-      ...prev,
-      files: prev.files.map((f: any) => f.id === currentFile.id ? { ...f, clarificationLog: newHistory } : f)
-    }));
-    setChatInput('');
-    setIsChatLoading(true);
-
-    try {
-      const { addClarification, updateWorkspace } = await import('@/lib/api-client');
-      await addClarification(currentFile.id, 'user', msg);
-
-      const conversationContext = newHistory.map(l => `${l.role === 'ai' ? 'AI' : 'User'}: ${l.content}`).join('\n');
-      const system = `You are NirnayAI, a strict procurement evaluator. You are verifying tender criteria with the user.
-      Based on the conversation context, decide if you have enough information to accurately evaluate bidders against this tender.
-      If NO: Respond with {"status": "CLARIFYING", "message": "Your next question..."}.
-      If YES: Respond with exactly {"status": "READY", "message": "Context finalized. Green signal achieved."}.`;
-      
-      const responseText = await callAnthropicAPI(system, `Conversation so far:\n${conversationContext}\nEvaluate context status.`, data.isTestMode);
-      const responseData = parseJSONResponse<{status: string, message: string}>(responseText);
-      
-      const isReady = responseData?.status === 'READY' || responseText.includes('"status": "READY"');
-      const aiMessage = responseData?.message || "Understood. The evaluation engine is now ready.";
-
-      await addClarification(currentFile.id, 'ai', aiMessage);
-      if (isReady) {
-        await updateWorkspace(currentFile.id, { tenderStatus: 'ready' });
-      }
-
-      updateData((prev: any) => {
-        const file = prev.files.find((f: any) => f.id === currentFile.id);
-        if (!file) return prev;
-        return {
-          ...prev,
-          files: prev.files.map((f: any) => f.id === currentFile.id ? {
-            ...f,
-            tenderStatus: isReady ? 'ready' : 'clarifying',
-            clarificationLog: [...file.clarificationLog, { role: 'ai', content: aiMessage }]
-          } : f)
-        };
-      });
-    } catch (e) {
-      console.error(e);
-      updateData((prev: any) => ({
-        ...prev,
-        files: prev.files.map((f: any) => f.id === currentFile.id ? {
-          ...f,
-          clarificationLog: [...f.clarificationLog, { role: 'ai', content: "Network error processing response. Are there any other mandatory criteria I should know about?" }]
-        } : f)
-      }));
-    } finally {
-      setIsChatLoading(false);
-    }
-  };
 
   if (currentFile.tenderStatus === 'awaiting_docs') {
     return (
@@ -426,7 +537,7 @@ const TenderOverviewView = ({ currentFile, data, updateData, setUploadModalConfi
             ) : (
               <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black uppercase px-4 py-1.5 rounded-full tracking-[0.2em] mb-6">
                 <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
-                AI Clarification Active
+                Criteria Review — Confirm to Proceed
               </div>
             )}
             <h2 className="text-5xl font-black text-[#003366] dark:text-white uppercase tracking-tighter leading-tight mb-4 max-w-[80%]">
@@ -443,66 +554,180 @@ const TenderOverviewView = ({ currentFile, data, updateData, setUploadModalConfi
             </div>
           </div>
 
+          {/* OCR Warning Banner — shown when document was unreadable (scanned/encrypted PDF) */}
+          {(currentFile.tenderOverview as any)?.ocrWarning && (
+            <div className="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest mb-1">
+                  Scanned / Image PDF — OCR Could Not Extract Text
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  The uploaded PDF appears to be scanned or image-based. Criteria below are template stubs —{' '}
+                  <strong>please enter the correct thresholds from the tender document</strong> before confirming.
+                  For better results, re-upload a text-searchable PDF or use an OCR tool first.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Criteria Review Panel */}
           <div className="mb-8">
-            <h3 className="text-sm font-black text-[#003366] dark:text-white uppercase tracking-[0.2em] mb-6 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
-              <Shield className="w-4 h-4" /> Evaluator Pre-Check Thread
-            </h3>
-            <div className="space-y-6">
-              {currentFile.clarificationLog.map((msg: any, i: number) => {
-                const isLastAiMsg = msg.role === 'ai' && i === currentFile.clarificationLog.length - 1;
-                return (
-                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-[slideDownFade_0.2s_ease-out]`}>
-                    <div className={`max-w-[80%] p-6 rounded-2xl shadow-sm ${msg.role === 'user' ? 'bg-[#003366] dark:bg-[#FF9933] text-white rounded-br-sm' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-sm'}`}>
-                      {msg.role === 'ai' && <div className="text-[9px] font-black text-[#FF9933] dark:text-[#FF9933] uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 bg-[#FF9933] rounded-full animate-pulse" />
-                        NirnayAI Question
-                      </div>}
-                      <div className="text-sm font-medium leading-relaxed whitespace-pre-wrap">
-                        {msg.role === 'ai' ? <TypewriterText text={msg.content} animate={isLastAiMsg} /> : msg.content}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {isChatLoading && (
-                <div className="flex justify-start">
-                  <div className="max-w-[80%] p-5 rounded-3xl rounded-bl-sm bg-slate-50 border border-slate-200 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" />
-                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                  </div>
-                </div>
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-black text-[#003366] dark:text-white uppercase tracking-[0.2em] flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                {currentFile.tenderStatus === 'ready' ? 'Confirmed Criteria' : 'Review Extracted Criteria'}
+              </h3>
+              {currentFile.tenderStatus === 'clarifying' && !isChatLoading && (
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  {activeCriteria.length} criteria found — edit if needed, then confirm
+                </span>
               )}
             </div>
+
+            {isChatLoading && (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="w-2.5 h-2.5 bg-[#FF9933] rounded-full animate-bounce" />
+                  <span className="w-2.5 h-2.5 bg-[#FF9933] rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                  <span className="w-2.5 h-2.5 bg-[#FF9933] rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                </div>
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">AI is extracting criteria from document…</p>
+              </div>
+            )}
+
+            {!isChatLoading && activeCriteria.length === 0 && currentFile.tenderStatus === 'clarifying' && (
+              <div className="text-center py-10 border-2 border-dashed border-slate-200 dark:border-slate-700">
+                <p className="text-sm text-slate-400 mb-3">No criteria extracted — add them manually below.</p>
+              </div>
+            )}
+
+            {!isChatLoading && activeCriteria.length > 0 && (
+              <div className="space-y-3">
+                {activeCriteria.map((c: any, idx: number) => {
+                  const typeColors: Record<string, string> = {
+                    financial: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                    technical: 'bg-blue-100 text-blue-800 border-blue-200',
+                    compliance: 'bg-purple-100 text-purple-800 border-purple-200',
+                    documentation: 'bg-slate-100 text-slate-700 border-slate-200',
+                  };
+                  const typeCls = typeColors[c.type?.toLowerCase()] || 'bg-slate-100 text-slate-600 border-slate-200';
+                  const isEditable = currentFile.tenderStatus === 'clarifying';
+
+                  return (
+                    <div key={c.id || idx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+                      <div className="flex items-start gap-3">
+                        {/* Mandatory toggle */}
+                        <button
+                          onClick={() => isEditable && updateCriterion(idx, 'mandatory', !c.mandatory)}
+                          className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${c.mandatory ? 'bg-[#FF9933] border-[#FF9933]' : 'border-slate-300 dark:border-slate-600'} ${!isEditable ? 'cursor-default' : 'cursor-pointer'}`}
+                          title={c.mandatory ? 'Mandatory — click to make optional' : 'Optional — click to make mandatory'}
+                        >
+                          {c.mandatory && <CheckCircle2 className="w-3 h-3 text-white" />}
+                        </button>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="text-[9px] font-black text-slate-400 font-mono">{c.id}</span>
+                            {isEditable ? (
+                              <input
+                                className="text-sm font-bold text-[#003366] dark:text-white bg-transparent border-b border-transparent hover:border-slate-300 focus:border-[#003366] focus:outline-none flex-1 min-w-0"
+                                value={c.label || ''}
+                                onChange={e => updateCriterion(idx, 'label', e.target.value)}
+                                placeholder="Criterion name…"
+                              />
+                            ) : (
+                              <span className="text-sm font-bold text-[#003366] dark:text-white">{c.label}</span>
+                            )}
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border tracking-widest ${typeCls}`}>
+                              {c.type || 'general'}
+                            </span>
+                            {c.mandatory && <span className="text-[9px] font-black text-[#FF9933] uppercase tracking-widest">● Mandatory</span>}
+                          </div>
+
+                          {isEditable ? (
+                            <textarea
+                              className="w-full text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-2 mt-1 resize-none focus:outline-none focus:border-[#003366]"
+                              rows={2}
+                              value={c.description || ''}
+                              onChange={e => updateCriterion(idx, 'description', e.target.value)}
+                              placeholder="Full criterion description…"
+                            />
+                          ) : (
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{c.description}</p>
+                          )}
+
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Threshold:</span>
+                            {isEditable ? (
+                              <input
+                                className="text-xs font-bold text-[#003366] dark:text-[#FF9933] bg-transparent border-b border-transparent hover:border-slate-300 focus:border-[#003366] focus:outline-none"
+                                value={c.threshold || ''}
+                                onChange={e => updateCriterion(idx, 'threshold', e.target.value)}
+                                placeholder="e.g. ₹10 Cr, 3 years…"
+                              />
+                            ) : (
+                              <span className="text-xs font-bold text-[#003366] dark:text-[#FF9933]">{c.threshold}</span>
+                            )}
+                            {isEditable && (
+                              <select
+                                className="text-[9px] font-black uppercase bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded focus:outline-none ml-2"
+                                value={c.type || 'technical'}
+                                onChange={e => updateCriterion(idx, 'type', e.target.value)}
+                              >
+                                {['financial','technical','compliance','documentation'].map(t => (
+                                  <option key={t} value={t}>{t}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        </div>
+
+                        {isEditable && (
+                          <button
+                            onClick={() => removeCriterion(idx)}
+                            className="text-slate-300 hover:text-red-500 transition-colors flex-shrink-0 mt-1"
+                            title="Remove criterion"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {currentFile.tenderStatus === 'clarifying' && !isChatLoading && (
+              <div className="mt-4 flex items-center justify-between">
+                <button
+                  onClick={addCriterion}
+                  className="flex items-center gap-2 text-xs font-black text-slate-400 hover:text-[#003366] dark:hover:text-[#FF9933] uppercase tracking-widest transition-colors border border-dashed border-slate-300 dark:border-slate-700 px-4 py-2"
+                >
+                  <Plus className="w-4 h-4" /> Add Criterion
+                </button>
+                <button
+                  onClick={handleConfirmCriteria}
+                  disabled={isConfirming || activeCriteria.length === 0}
+                  className="flex items-center gap-3 bg-[#003366] dark:bg-[#FF9933] text-white dark:text-[#003366] px-8 py-3 text-xs font-black uppercase tracking-widest hover:bg-[#002244] dark:hover:bg-[#FF9933]/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {isConfirming ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Confirming…
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" /> Confirm All & Proceed
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {currentFile.tenderStatus === 'clarifying' && (
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white dark:from-[#001122] dark:via-[#001122] to-transparent p-6 z-10">
-          <div className="max-w-4xl mx-auto relative flex flex-col">
-            <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2 ml-4">Provide Clarification to proceed</span>
-            <div className="relative group">
-              <input 
-                type="text" 
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAnswerQuestion(chatInput)}
-                placeholder="Answer the AI's question above..."
-                className="w-full bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 px-8 py-5 text-sm font-medium text-[#333] dark:text-slate-200 focus:outline-none focus:border-[#003366] dark:focus:border-[#FF9933] transition-all pr-28 shadow-sm"
-              />
-              <button 
-                className="absolute right-2 top-2 bottom-2 bg-[#003366] dark:bg-[#FF9933] text-white dark:text-[#003366] px-8 hover:bg-[#002244] dark:hover:bg-[#FF9933]/90 transition-all disabled:opacity-50 flex items-center gap-3 font-black text-[11px] uppercase tracking-widest shadow-lg rounded-sm"
-                onClick={() => handleAnswerQuestion(chatInput)}
-                disabled={!chatInput.trim() || isChatLoading}
-              >
-                <span>Send</span>
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -526,19 +751,69 @@ const BidderView = ({ currentFile, currentBidder, data, updateData, setUploadMod
       setIsEvalLoading(true);
       const tenderDocsText = currentFile.tenderDocs.map((d: any) => `Tender Doc (${d.name}):\n${d.extractedText || ''}`).join('\n\n');
       const bidderDocsText = currentBidder.docs.map((d: any) => `Bidder Doc (${d.name}):\n${d.extractedText || ''}`).join('\n\n');
-      
+      const extractedCriteria: any[] = (currentFile.tenderOverview as any)?.extractedCriteria || [];
+
       const fetchEval = async () => {
         try {
-          const systemPrompt = `You are NirnayAI's evaluation engine. Given the tender document text and bidder document text, simulate a realistic procurement eligibility evaluation. Generate criterion-level verdicts. Respond in this exact JSON format with no markdown: {"overallVerdict": "Clearly Eligible" | "Clearly Not Eligible" | "Requires Human Review", "criteria": [{"id": "C1", "description": "...", "category": "Financial" | "Technical" | "Compliance" | "Documentation", "mandatory": true | false, "verdict": "Eligible" | "Not Eligible" | "Manual Review" | "Not Applicable", "sourceDocument": "...", "extractedValue": "...", "reason": "...", "confidence": "High" | "Medium" | "Low"}]}`;
-          const userMsg = `Tender context:\n${tenderDocsText}\n\nBidder name: ${currentBidder.name}\nBidder documents:\n${bidderDocsText}\n\nEvaluate this bidder against the tender criteria. Generate 6 to 10 criteria.`;
-          
-          const responseText = await callAnthropicAPI(systemPrompt, userMsg, data.isTestMode);
-          const evalData = parseJSONResponse<EvaluationResult>(responseText);
-          
+          let evalData: EvaluationResult | null = null;
+
+          // --- Path 1: Real ML evaluation using stored text + criteria ---
+          const combinedBidderText = currentBidder.docs
+            .map((d: any) => (d.extractedText || '').replace(/\[ML_EVIDENCE\][\s\S]*/, '').trim())
+            .filter(Boolean)
+            .join('\n\n');
+
+          if (extractedCriteria.length > 0 && combinedBidderText) {
+            try {
+              const res = await fetch('/api/ml/extract-values-json', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ document_text: combinedBidderText, criteria: extractedCriteria }),
+              });
+              if (res.ok) {
+                const mlResult = await res.json();
+                const evidence: any[] = mlResult.evidence || [];
+                if (evidence.length > 0) {
+                  const criteriaItems: Criterion[] = evidence.map((e: any, idx: number) => {
+                    const crit = extractedCriteria[idx] || extractedCriteria.find((c: any) => c.id === e.criterionId) || {};
+                    const conf = typeof e.confidence === 'number' ? e.confidence : 0.75;
+                    return {
+                      id: crit.id || `C${idx + 1}`,
+                      description: e.criterionName || crit.description || crit.label || `Criterion ${idx + 1}`,
+                      category: crit.type ? (crit.type.charAt(0).toUpperCase() + crit.type.slice(1)) : 'General',
+                      mandatory: crit.mandatory ?? false,
+                      verdict: e.status === 'Eligible' ? 'Eligible' : e.status === 'Not Eligible' ? 'Not Eligible' : 'Manual Review',
+                      sourceDocument: e.sourceDocument || `${currentBidder.name}_submission`,
+                      extractedValue: e.extractedValue || 'N/A',
+                      reason: e.reason || '',
+                      confidence: conf >= 0.8 ? 'High' : conf >= 0.5 ? 'Medium' : 'Low',
+                    };
+                  });
+                  const mandatory = criteriaItems.filter(c => c.mandatory);
+                  const hasFail = mandatory.some(c => c.verdict === 'Not Eligible');
+                  const hasReview = mandatory.some(c => c.verdict === 'Manual Review');
+                  const overallVerdict: EvaluationResult['overallVerdict'] = hasFail
+                    ? 'Clearly Not Eligible' : hasReview ? 'Requires Human Review' : 'Clearly Eligible';
+                  evalData = { overallVerdict, criteria: criteriaItems };
+                  console.log(`[ML Eval] Real ML evaluation complete — ${criteriaItems.length} criteria, verdict: ${overallVerdict}`);
+                }
+              }
+            } catch (mlErr) {
+              console.warn('[ML Eval] Real ML path failed, falling back to AI chat:', mlErr);
+            }
+          }
+
+          // --- Path 2: Fallback — AI chat (real /api/ml/chat or local mock) ---
+          if (!evalData) {
+            const systemPrompt = `You are NirnayAI's evaluation engine. Given the tender document text and bidder document text, simulate a realistic procurement eligibility evaluation. Generate criterion-level verdicts. Respond in this exact JSON format with no markdown: {"overallVerdict": "Clearly Eligible" | "Clearly Not Eligible" | "Requires Human Review", "criteria": [{"id": "C1", "description": "...", "category": "Financial" | "Technical" | "Compliance" | "Documentation", "mandatory": true | false, "verdict": "Eligible" | "Not Eligible" | "Manual Review" | "Not Applicable", "sourceDocument": "...", "extractedValue": "...", "reason": "...", "confidence": "High" | "Medium" | "Low"}]}`;
+            const userMsg = `Tender context:\n${tenderDocsText}\n\nBidder name: ${currentBidder.name}\nBidder documents:\n${bidderDocsText}\n\nEvaluate this bidder against the tender criteria. Generate 6 to 10 criteria.`;
+            const responseText = await callAnthropicAPI(systemPrompt, userMsg, data.isTestMode);
+            evalData = parseJSONResponse<EvaluationResult>(responseText);
+          }
+
           if (evalData) {
             const { saveEvaluation } = await import('@/lib/api-client');
             await saveEvaluation(currentFile.id, currentBidder.id, evalData as any);
-
             updateData((prev: any) => ({
               ...prev,
               files: prev.files.map((f: any) => f.id === currentFile.id ? {
@@ -560,10 +835,10 @@ const BidderView = ({ currentFile, currentBidder, data, updateData, setUploadMod
           setIsEvalLoading(false);
         }
       };
-      
+
       fetchEval();
     }
-  }, [isComplete, currentBidder?.evaluationResult, currentBidder?.docs, currentBidder?.id, currentBidder?.name, currentFile?.tenderDocs, currentFile?.id, updateData, isEvalLoading, data.isTestMode]);
+  }, [isComplete, currentBidder?.evaluationResult, currentBidder?.docs, currentBidder?.id, currentBidder?.name, currentFile?.tenderDocs, currentFile?.id, currentFile?.tenderOverview, updateData, isEvalLoading, data.isTestMode]);
 
   if (!hasDocs) {
     return (
@@ -801,42 +1076,153 @@ const BidderView = ({ currentFile, currentBidder, data, updateData, setUploadMod
 };
 
 const DocumentPreviewModal = ({ previewDoc, setPreviewDoc }: any) => {
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [noBlob, setNoBlob] = useState(false);
+
+  useEffect(() => {
+    if (!previewDoc) return;
+    setFileUrl(null);
+    setNoBlob(false);
+    setLoading(true);
+    let blobUrl = '';
+    getFileIDB(previewDoc.id)
+      .then(file => {
+        if (file) {
+          blobUrl = URL.createObjectURL(file);
+          setFileUrl(blobUrl);
+        } else {
+          setNoBlob(true);
+        }
+      })
+      .catch(() => setNoBlob(true))
+      .finally(() => setLoading(false));
+    return () => { if (blobUrl) URL.revokeObjectURL(blobUrl); };
+  }, [previewDoc?.id]);
+
   if (!previewDoc) return null;
+
+  const ext = previewDoc.name?.split('.').pop()?.toUpperCase() || 'FILE';
+  const isImage = previewDoc.type?.includes('image');
+  const isPdf = previewDoc.type?.includes('pdf');
+  const isDocx = previewDoc.type?.includes('word') || ext === 'DOCX' || ext === 'DOC';
+
+  const renderPreview = () => {
+    if (loading) {
+      return (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-[#003366] border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading preview…</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (fileUrl && isPdf) {
+      return (
+        <iframe
+          src={fileUrl}
+          className="flex-1 w-full border-0"
+          title={previewDoc.name}
+        />
+      );
+    }
+
+    if (fileUrl && isImage) {
+      return (
+        <div className="flex-1 overflow-auto bg-slate-100 flex items-center justify-center p-6">
+          <img
+            src={fileUrl}
+            alt={previewDoc.name}
+            className="max-w-full max-h-full object-contain shadow-lg"
+          />
+        </div>
+      );
+    }
+
+    // DOCX or no blob: show extracted text
+    const rawText = previewDoc.extractedText?.trim() || '';
+    if (!rawText) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+          <FileText className="w-16 h-16 text-slate-200 mb-4" />
+          <p className="text-sm font-black uppercase tracking-widest text-slate-400">
+            {noBlob ? 'Preview not available' : 'No content extracted'}
+          </p>
+          <p className="text-xs text-slate-300 mt-2">
+            {noBlob
+              ? 'Re-upload the document to enable preview.'
+              : previewDoc.status === 'scanning'
+              ? 'OCR is still running. Try again after processing.'
+              : 'This document could not be read.'}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-1 overflow-y-auto bg-slate-100 p-6">
+        <div className="max-w-3xl mx-auto bg-white shadow-sm border border-slate-200 min-h-full p-12">
+          {isDocx && (
+            <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
+              <File className="w-4 h-4 text-indigo-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Extracted Document Content</span>
+            </div>
+          )}
+          <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 leading-relaxed break-words">
+            {rawText}
+          </pre>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-      <div className="bg-slate-50 dark:bg-slate-950 w-full max-w-5xl h-[85vh] shadow-2xl flex flex-col animate-[scaleIn_0.2s_ease-out]">
-        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex justify-between items-center flex-shrink-0">
+      <div className="bg-slate-50 w-full max-w-6xl h-[92vh] shadow-2xl flex flex-col animate-[scaleIn_0.2s_ease-out] overflow-hidden">
+
+        {/* Header */}
+        <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-shrink-0">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+            <div className="w-10 h-10 bg-slate-100 flex items-center justify-center">
               {getDocIcon(previewDoc.type)}
             </div>
             <div>
-              <h3 className="text-sm font-black text-[#003366] dark:text-white truncate max-w-lg">{previewDoc.name}</h3>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+              <h3 className="text-sm font-black text-[#003366] truncate max-w-xl">{previewDoc.name}</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 {(previewDoc.size / 1024 / 1024).toFixed(2)} MB • Uploaded {new Date(previewDoc.uploadedAt).toLocaleString()}
               </p>
             </div>
           </div>
-          <button onClick={() => setPreviewDoc(null)} className="text-slate-400 hover:text-red-500 bg-slate-100 dark:bg-slate-800 p-2 transition-colors"><X className="w-5 h-5"/></button>
-        </div>
-        <div className="flex-1 p-8 bg-slate-100 dark:bg-slate-950 overflow-y-auto flex justify-center items-start">
-          <div className="w-full max-w-3xl bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 min-h-full p-12 relative flex flex-col items-center justify-center">
-            <div className="text-center opacity-30 select-none">
-              <FileText className="w-24 h-24 mx-auto mb-6 text-slate-400 dark:text-slate-600" />
-              <div className="text-2xl font-black uppercase tracking-widest text-slate-400 dark:text-slate-600 mb-2">Simulated Preview</div>
-              <p className="text-sm font-bold text-slate-400 dark:text-slate-600">File contents are not stored in window.storage.</p>
-            </div>
-            <div className="absolute inset-12 pointer-events-none opacity-5 dark:opacity-10">
-              {[...Array(20)].map((_, i) => (
-                <div key={i} className="h-4 bg-black dark:bg-white mb-4 rounded-full w-full" style={{ width: `${Math.random() * 40 + 60}%` }} />
-              ))}
-            </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded ${
+              isPdf ? 'bg-red-50 text-red-600' :
+              isImage ? 'bg-blue-50 text-blue-600' :
+              isDocx ? 'bg-indigo-50 text-indigo-600' :
+              'bg-slate-100 text-slate-600'
+            }`}>{ext}</span>
+            {fileUrl && (
+              <a
+                href={fileUrl}
+                download={previewDoc.name}
+                className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-[#003366] hover:text-white transition-all"
+              >
+                Download
+              </a>
+            )}
+            <button onClick={() => setPreviewDoc(null)} className="text-slate-400 hover:text-red-500 bg-slate-100 p-2 ml-2">
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
+
+        {renderPreview()}
       </div>
     </div>
   );
 };
+
 
 const CreateFileModal = ({ isCreateFileModalOpen, setIsCreateFileModalOpen, handleCreateFile }: any) => {
   if (!isCreateFileModalOpen) return null;
@@ -918,48 +1304,45 @@ const UploadModal = ({ uploadModalConfig, setUploadModalConfig, currentFile, upd
     if (selectedFiles.length === 0 || !currentFile) return;
 
     const payloadDocs = selectedFiles.map(f => ({ name: f.name, size: f.size, type: f.type || 'application/octet-stream' }));
-    const filesToProcess = [...selectedFiles]; // Keep reference to actual files for ML pipeline
-
+    const filesToProcess = [...selectedFiles];
     const configType = uploadModalConfig.type;
     const tId = uploadModalConfig.targetId;
     setUploadModalConfig(null);
 
     try {
-      const { addTenderDocuments, addBidderDocuments, updateDocumentStatus, processDocumentML, extractCriteriaML, extractValuesML, updateWorkspace } = await import('@/lib/api-client');
-      let createdDocs;
+      const {
+        addTenderDocuments, addBidderDocuments,
+        updateDocumentStatus, updateDocumentText, updateWorkspace,
+        processDocumentML, extractCriteriaML, extractValuesML,
+      } = await import('@/lib/api-client');
+
+      let createdDocs: any[];
       if (isTender) {
         createdDocs = await addTenderDocuments(currentFile.id, payloadDocs);
       } else {
         createdDocs = await addBidderDocuments(currentFile.id, tId, payloadDocs);
       }
 
-      // Update UI with uploaded docs (status: queued)
-      updateData((prev: any) => {
-        return {
-          files: prev.files.map((f: any) => {
-            if (f.id !== currentFile.id) return f;
-            if (isTender) {
-              return { 
-                ...f, 
-                tenderStatus: 'ml_processing',
-                tenderDocs: [...f.tenderDocs, ...createdDocs] 
-              };
-            } else {
-              return {
-                ...f,
-                bidders: f.bidders.map((b: any) => b.id === tId ? { ...b, docs: [...b.docs, ...createdDocs] } : b)
-              };
-            }
-          })
-        };
+      // Save original file blobs to IndexedDB so the preview modal can render them natively
+      createdDocs.forEach((doc, i) => {
+        if (filesToProcess[i]) saveFileIDB(doc.id, filesToProcess[i]).catch(() => {});
       });
 
-      // --- ML Pipeline Processing ---
-      // Process each file through the Railway ML pipeline
+      updateData((prev: any) => ({
+        files: prev.files.map((f: any) => {
+          if (f.id !== currentFile.id) return f;
+          if (isTender) {
+            return { ...f, tenderStatus: 'ml_processing', tenderDocs: [...f.tenderDocs, ...createdDocs] };
+          }
+          return { ...f, bidders: f.bidders.map((b: any) => b.id === tId ? { ...b, docs: [...b.docs, ...createdDocs] } : b) };
+        })
+      }));
+
       const processDocs = async () => {
         let hasError = false;
         let errorMessage = "";
-        
+        let allExtractedCriteria: any[] = [];
+
         for (let idx = 0; idx < createdDocs.length; idx++) {
           const doc = createdDocs[idx];
           const originalFile = filesToProcess[idx];
@@ -969,71 +1352,75 @@ const UploadModal = ({ uploadModalConfig, setUploadModalConfig, currentFile, upd
           await updateDocumentStatus(currentFile.id, doc.id, 'scanning');
 
           try {
+            let mlResult: any = null;
             let extractedText = "";
 
-            if (isTender) {
-              console.log(`[ML Pipeline] Processing tender doc: ${originalFile.name}`);
-              const mlResult = await processDocumentML(originalFile);
-              console.log(`[ML Pipeline] OCR complete for: ${originalFile.name}`, mlResult);
-              extractedText = mlResult.extracted_text || "";
+            // --- OCR (non-fatal: Railway ML may be sleeping or unavailable) ---
+            try {
+              console.log(`[ML Pipeline] Processing: ${originalFile.name}`);
+              mlResult = await processDocumentML(originalFile);
+              extractedText = mlResult.full_text || mlResult.text || "";
+              console.log(`[ML Pipeline] OCR complete — tier: ${mlResult.tier}, confidence: ${mlResult.confidence?.toFixed(2)}`);
+            } catch (ocrErr: any) {
+              console.warn(`[ML Pipeline] OCR unavailable (Railway may be sleeping) — proceeding without OCR:`, ocrErr.message);
+            }
 
-              try {
-                const criteriaResult = await extractCriteriaML(originalFile);
-                console.log(`[ML Pipeline] Criteria extracted:`, criteriaResult);
-                if (criteriaResult.criteria) {
-                  extractedText += "\n\nExtracted Criteria:\n" + JSON.stringify(criteriaResult.criteria, null, 2);
+            if (isTender) {
+              // Criteria extraction only if OCR succeeded
+              if (mlResult) {
+                try {
+                  const criteriaResult = await extractCriteriaML(originalFile);
+                  const criteriaArr = Array.isArray(criteriaResult) ? criteriaResult : [];
+                  allExtractedCriteria = criteriaArr;
+                  console.log(`[ML Pipeline] Extracted ${criteriaArr.length} criteria`);
+                } catch (criteriaErr) {
+                  console.warn(`[ML Pipeline] Criteria extraction non-critical failure:`, criteriaErr);
                 }
-              } catch (criteriaErr) {
-                console.warn(`[ML Pipeline] Criteria extraction failed (non-critical):`, criteriaErr);
               }
             } else {
-              console.log(`[ML Pipeline] Processing bidder doc: ${originalFile.name}`);
-              const mlResult = await processDocumentML(originalFile);
-              console.log(`[ML Pipeline] OCR complete for: ${originalFile.name}`, mlResult);
-              extractedText = mlResult.extracted_text || "";
-
-              try {
-                const tenderCriteria = currentFile.tenderDocs?.length > 0 
-                  ? JSON.stringify({ criteria: "Extract all eligibility criteria values" })
-                  : "";
-                if (tenderCriteria) {
-                  const valuesResult = await extractValuesML(originalFile, tenderCriteria);
-                  console.log(`[ML Pipeline] Values extracted:`, valuesResult);
-                  if (valuesResult.values) {
-                     extractedText += "\n\nExtracted Values:\n" + JSON.stringify(valuesResult.values, null, 2);
+              // For bidder docs, try to extract values against stored tender criteria
+              const tenderCriteria = (currentFile.tenderOverview as any)?.extractedCriteria;
+              if (tenderCriteria?.length > 0 && mlResult) {
+                try {
+                  const valuesResult = await extractValuesML(originalFile, JSON.stringify(tenderCriteria));
+                  const evidenceArr = valuesResult.evidence || [];
+                  if (evidenceArr.length > 0) {
+                    extractedText += "\n\n[ML_EVIDENCE]" + JSON.stringify(evidenceArr);
                   }
+                  console.log(`[ML Pipeline] Extracted ${evidenceArr.length} evidence items`);
+                } catch (valErr) {
+                  console.warn(`[ML Pipeline] Value extraction non-critical failure:`, valErr);
                 }
-              } catch (valErr) {
-                console.warn(`[ML Pipeline] Value extraction failed (non-critical):`, valErr);
               }
             }
 
-            // Save extractedText to UI state
-            updateData((prev: any) => ({
-              ...prev,
-              files: prev.files.map((f: any) => {
-                if (f.id !== currentFile.id) return f;
-                if (isTender) {
-                  return { ...f, tenderDocs: f.tenderDocs.map((d: any) => d.id === doc.id ? { ...d, extractedText } : d) };
-                } else {
-                  return { ...f, bidders: f.bidders.map((b: any) => b.id === tId ? { ...b, docs: b.docs.map((d: any) => d.id === doc.id ? { ...d, extractedText } : d) } : b) };
-                }
-              })
-            }));
+            if (extractedText) {
+              // Truncate to 800 KB of text to stay safely under the 20 MB body limit
+              const safeText = extractedText.length > 800_000
+                ? extractedText.slice(0, 800_000) + '\n\n[TRUNCATED — document too large]'
+                : extractedText;
+              try {
+                await updateDocumentText(currentFile.id, doc.id, safeText);
+              } catch (saveErr) {
+                console.warn(`[ML Pipeline] Could not persist extracted text for ${doc.id}:`, saveErr);
+              }
+            }
+
 
             updateData((prev: any) => updateDocStatus(prev, currentFile.id, configType, tId, doc.id, 'complete'));
             await updateDocumentStatus(currentFile.id, doc.id, 'complete');
-            console.log(`[ML Pipeline] ✓ Document processed: ${originalFile.name}`);
+            console.log(`[ML Pipeline] ✓ Done: ${originalFile.name}${mlResult ? "" : " (no OCR — ML unavailable)"}`);
 
-          } catch (mlErr: any) {
-            console.error(`[ML Pipeline] Error processing ${originalFile.name}:`, mlErr);
+          } catch (fatalErr: any) {
+            // Only truly fatal errors (DB write failures etc.) reach here
+            console.error(`[ML Pipeline] Fatal error processing ${originalFile.name}:`, fatalErr);
             updateData((prev: any) => updateDocStatus(prev, currentFile.id, configType, tId, doc.id, 'failed'));
             await updateDocumentStatus(currentFile.id, doc.id, 'failed');
             hasError = true;
-            errorMessage = mlErr.message || "Failed to communicate with ML Pipeline";
+            errorMessage = fatalErr.message || "Failed to save document";
           }
         }
-        
+
         if (isTender) {
           if (hasError) {
             updateData((prev: any) => ({
@@ -1042,18 +1429,25 @@ const UploadModal = ({ uploadModalConfig, setUploadModalConfig, currentFile, upd
             }));
             await updateWorkspace(currentFile.id, { tenderStatus: 'error' });
           } else {
+            // Save extracted criteria in tenderOverview for use during bidder evaluation
+            const updatedOverview = {
+              ...(currentFile.tenderOverview || {}),
+              ...(allExtractedCriteria.length > 0 ? { extractedCriteria: allExtractedCriteria } : {}),
+            };
+            const patch: any = { tenderStatus: 'scanning' };
+            if (allExtractedCriteria.length > 0) patch.tenderOverview = updatedOverview;
+            await updateWorkspace(currentFile.id, patch);
             updateData((prev: any) => ({
               ...prev,
-              files: prev.files.map((f: any) => f.id === currentFile.id ? { ...f, tenderStatus: 'scanning' } : f)
+              files: prev.files.map((f: any) => f.id === currentFile.id
+                ? { ...f, tenderStatus: 'scanning', tenderOverview: updatedOverview }
+                : f)
             }));
-            await updateWorkspace(currentFile.id, { tenderStatus: 'scanning' });
           }
         }
       };
 
       processDocs();
-
-
     } catch (e) {
       console.error(e);
       alert('Failed to upload documents');
@@ -1432,7 +1826,7 @@ const WorkspaceRightPanel = ({ currentFile }: { currentFile: FileWorkspace | nul
           )}
           {currentFile.tenderStatus === 'clarifying' && (
             <div className="flex items-center gap-2 text-xs font-bold text-amber-600">
-              <AlertCircle className="w-4 h-4" /> AI Clarification Active
+              <AlertCircle className="w-4 h-4" /> Criteria Review
             </div>
           )}
           {currentFile.tenderStatus === 'ready' && (
