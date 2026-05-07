@@ -61,6 +61,5 @@ coverage/
 NirnayAI_Project_Proposal.pdf
 DEV_FILES/
 
-
 # clerk configuration (can include secrets)
 /.clerk/
