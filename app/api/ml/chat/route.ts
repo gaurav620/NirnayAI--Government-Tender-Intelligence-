@@ -2,6 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { ML_PIPELINE_URL } from "@/lib/ml-pipeline";
 
+const ML_API_KEY = process.env.ML_API_KEY || "";
+
 /**
  * POST /api/ml/chat
  * Proxies { system, message } to Railway ML /chat endpoint.
@@ -20,9 +22,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "message is required" }, { status: 400 });
     }
 
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (ML_API_KEY) headers["X-API-Key"] = ML_API_KEY;
     const res = await fetch(`${ML_PIPELINE_URL}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ system: system || "", message }),
     });
 
